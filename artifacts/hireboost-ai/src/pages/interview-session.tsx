@@ -1,249 +1,422 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useLocation } from "wouter";
-import { useGetInterviewSession, useSubmitAnswer, useCompleteInterviewSession } from "@workspace/api-client-react";
+import {
+  useGetInterviewSession,
+  useSubmitAnswer,
+  useCompleteInterviewSession,
+  getGetInterviewSessionQueryKey,
+} from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, Send, Star, ArrowRight, CheckCircle2, User, Bot } from "lucide-react";
+import {
+  Loader2,
+  Send,
+  Star,
+  CheckCircle2,
+  User,
+  Sparkles,
+  ChevronRight,
+  Trophy,
+} from "lucide-react";
 
+/* ─────────────────────────────────────────────────────────
+   TypingIndicator — 3 pulsing dots, ChatGPT style
+───────────────────────────────────────────────────────── */
+function TypingIndicator() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 4 }}
+      className="flex items-end gap-3 max-w-[85%]"
+    >
+      {/* AI avatar */}
+      <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/15 flex items-center justify-center border border-primary/25 mb-1">
+        <Sparkles className="h-4 w-4 text-primary" />
+      </div>
+      {/* Dots */}
+      <div className="flex items-center gap-1.5 bg-secondary px-5 py-4 rounded-2xl rounded-bl-sm">
+        {[0, 1, 2].map((i) => (
+          <motion.div
+            key={i}
+            className="w-2 h-2 rounded-full bg-muted-foreground"
+            animate={{ y: [0, -5, 0], opacity: [0.4, 1, 0.4] }}
+            transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.18, ease: "easeInOut" }}
+          />
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   StarRating display
+───────────────────────────────────────────────────────── */
+function StarRating({ rating }: { rating: number | null | undefined }) {
+  return (
+    <div className="flex gap-0.5">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <Star
+          key={star}
+          className={`h-4 w-4 ${
+            rating && star <= rating
+              ? "text-amber-400 fill-amber-400"
+              : "text-muted-foreground/40"
+          }`}
+        />
+      ))}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   Main Interview Session page
+───────────────────────────────────────────────────────── */
 export default function InterviewSession() {
   const { id } = useParams<{ id: string }>();
-  const sessionId = parseInt(id || "0", 10);
+  const sessionId = parseInt(id ?? "0", 10);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const { data: session, isLoading, refetch } = useGetInterviewSession(sessionId, {
-    query: {
-      enabled: !!sessionId
-    }
+  const { data: session, isLoading } = useGetInterviewSession(sessionId, {
+    query: { enabled: !!sessionId },
   });
 
-  const submitMutation = useSubmitAnswer();
-  const completeMutation = useCompleteInterviewSession();
+  const submitMutation = useSubmitAnswer(sessionId);
+  const completeMutation = useCompleteInterviewSession(sessionId);
 
   const [currentAnswer, setCurrentAnswer] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
+  // Auto-scroll to bottom when messages update
   useEffect(() => {
-    scrollToBottom();
-  }, [session?.questions]);
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [session?.questions, isSubmitting]);
 
   if (isLoading) {
-    return <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+    return (
+      <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center flex-col gap-3">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm text-muted-foreground">Loading your interview...</p>
+      </div>
+    );
   }
 
   if (!session) {
-    return <div className="p-8 text-center">Session not found.</div>;
+    return (
+      <div className="p-8 text-center">
+        <p className="text-muted-foreground">Session not found.</p>
+        <Button className="mt-4" onClick={() => setLocation("/interview")}>
+          Back to Interviews
+        </Button>
+      </div>
+    );
   }
 
-  // Find the first unanswered question
-  const currentQuestionIndex = session.questions.findIndex(q => !q.userAnswer);
+  // Find first unanswered question
+  const currentQuestionIndex = session.questions.findIndex((q) => !q.userAnswer);
   const isCompleted = session.status === "completed" || currentQuestionIndex === -1;
   const currentQuestion = !isCompleted ? session.questions[currentQuestionIndex] : null;
-  const progressPercentage = (session.answeredQuestions / session.totalQuestions) * 100;
+  const progressPercent = (session.answeredQuestions / Math.max(session.totalQuestions, 1)) * 100;
 
-  const handleSubmit = () => {
-    if (!currentAnswer.trim() || !currentQuestion) return;
+  const handleSubmit = async () => {
+    if (!currentAnswer.trim() || !currentQuestion || isSubmitting) return;
+
+    setIsSubmitting(true);
+    // Small delay so the scroll picks up typing indicator
+    await new Promise((r) => setTimeout(r, 50));
 
     submitMutation.mutate(
-      {
-        data: {
-          questionId: currentQuestion.id,
-          answer: currentAnswer
-        }
-      },
+      { data: { questionId: currentQuestion.id, answer: currentAnswer } },
       {
         onSuccess: () => {
           setCurrentAnswer("");
-          refetch();
-          
-          // If it was the last question, auto-complete
-          if (session.answeredQuestions + 1 === session.totalQuestions) {
-            handleComplete();
+          setIsSubmitting(false);
+          queryClient.invalidateQueries({
+            queryKey: getGetInterviewSessionQueryKey(sessionId),
+          });
+
+          // Auto-complete if last question
+          const isLastQuestion =
+            session.answeredQuestions + 1 >= session.totalQuestions;
+          if (isLastQuestion) {
+            completeMutation.mutate(undefined, {
+              onSuccess: () => {
+                queryClient.invalidateQueries({
+                  queryKey: getGetInterviewSessionQueryKey(sessionId),
+                });
+                toast({ title: "Interview complete! Great work." });
+              },
+            });
           }
         },
-        onError: (err) => {
-          toast({
-            title: "Submission failed",
-            description: err.error || "Please try again.",
-            variant: "destructive"
-          });
-        }
-      }
-    );
-  };
-
-  const handleComplete = () => {
-    completeMutation.mutate(
-      undefined,
-      {
-        onSuccess: () => {
-          refetch();
-          toast({ title: "Interview completed!" });
-        }
+        onError: () => {
+          setIsSubmitting(false);
+          toast({ title: "Submission failed", description: "Please try again.", variant: "destructive" });
+        },
       }
     );
   };
 
   const handleFinishEarly = () => {
-    if (confirm("Are you sure you want to end the interview early?")) {
-      handleComplete();
-    }
+    if (!confirm("End the interview early?")) return;
+    completeMutation.mutate(undefined, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetInterviewSessionQueryKey(sessionId) });
+        toast({ title: "Interview ended." });
+      },
+    });
   };
 
+  // Visible questions: all answered + current
+  const visibleQuestions = session.questions.filter(
+    (_, idx) => idx <= (currentQuestionIndex === -1 ? session.questions.length - 1 : currentQuestionIndex)
+  );
+
   return (
-    <div className="flex flex-col h-[calc(100vh-3.5rem)] max-w-5xl mx-auto w-full">
-      <div className="flex-none p-4 border-b bg-background">
-        <div className="flex items-center justify-between mb-4">
+    <div className="flex flex-col h-[calc(100dvh-3.5rem)] max-w-4xl mx-auto w-full">
+
+      {/* ── Header ── */}
+      <div className="flex-none px-4 py-3 border-b bg-background/95 backdrop-blur">
+        <div className="flex items-center justify-between mb-2.5">
           <div>
-            <h2 className="font-bold text-lg">{session.jobRole} Interview</h2>
-            <div className="text-sm text-muted-foreground flex items-center gap-2">
-              <span className="capitalize">{session.difficulty} Mode</span>
-              <span>•</span>
-              <span>{session.answeredQuestions} / {session.totalQuestions} Answered</span>
+            <div className="flex items-center gap-2">
+              <h2 className="font-bold text-base">{session.jobRole}</h2>
+              <Badge variant="secondary" className="text-xs capitalize">{session.difficulty}</Badge>
             </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {session.answeredQuestions} of {session.totalQuestions} questions answered
+            </p>
           </div>
           {isCompleted ? (
-            <Button variant="default" onClick={() => setLocation("/dashboard")}>Return to Dashboard</Button>
+            <Button size="sm" onClick={() => setLocation("/dashboard")}>
+              Dashboard <ChevronRight className="ml-1 h-3.5 w-3.5" />
+            </Button>
           ) : (
-            <Button variant="ghost" size="sm" onClick={handleFinishEarly} className="text-muted-foreground">
+            <Button variant="ghost" size="sm" className="text-muted-foreground text-xs" onClick={handleFinishEarly}>
               End Early
             </Button>
           )}
         </div>
-        <Progress value={progressPercentage} className="h-2" />
+
+        {/* Segmented progress bar */}
+        <div className="flex gap-1">
+          {session.questions.map((q, i) => (
+            <div
+              key={q.id}
+              className={`flex-1 h-1.5 rounded-full transition-all duration-500 ${
+                q.userAnswer
+                  ? "bg-primary"
+                  : i === currentQuestionIndex
+                  ? "bg-primary/30"
+                  : "bg-muted"
+              }`}
+            />
+          ))}
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 pb-32">
-        {session.questions.map((q, idx) => {
-          const isVisible = idx <= (currentQuestionIndex === -1 ? session.questions.length : currentQuestionIndex);
-          if (!isVisible) return null;
+      {/* ── Chat messages ── */}
+      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-5" style={{ scrollBehavior: "smooth" }}>
 
-          return (
-            <div key={q.id} className="space-y-6">
-              {/* Question bubble */}
-              <motion.div 
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex gap-4 max-w-[85%]"
-              >
-                <div className="flex-shrink-0 h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20">
-                  <Bot className="h-5 w-5 text-primary" />
+        {/* Intro message */}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-end gap-3"
+        >
+          <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/15 flex items-center justify-center border border-primary/25 mb-1">
+            <Sparkles className="h-4 w-4 text-primary" />
+          </div>
+          <div className="bg-secondary text-secondary-foreground px-4 py-3 rounded-2xl rounded-bl-sm text-sm max-w-[80%]">
+            Welcome to your <strong>{session.jobRole}</strong> mock interview. I'll ask you{" "}
+            <strong>{session.totalQuestions}</strong> questions. Take your time and answer thoughtfully.
+          </div>
+        </motion.div>
+
+        {/* Q&A pairs */}
+        {visibleQuestions.map((q, idx) => (
+          <div key={q.id} className="space-y-4">
+
+            {/* Question bubble (AI) */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
+              className="flex items-end gap-3 max-w-[88%]"
+            >
+              <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/15 flex items-center justify-center border border-primary/25 mb-1 shrink-0">
+                <Sparkles className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground font-medium mb-1 ml-1">
+                  Question {q.questionIndex + 1}
+                </p>
+                <div className="bg-secondary text-secondary-foreground px-4 py-3 rounded-2xl rounded-bl-sm text-sm leading-relaxed">
+                  {q.questionText}
                 </div>
-                <div className="bg-secondary text-secondary-foreground px-5 py-3 rounded-2xl rounded-tl-sm shadow-sm">
-                  <div className="text-xs text-muted-foreground font-medium mb-1">Question {q.questionIndex}</div>
-                  <p className="leading-relaxed">{q.questionText}</p>
+              </div>
+            </motion.div>
+
+            {/* User answer bubble */}
+            {q.userAnswer && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-end gap-3 justify-end"
+              >
+                <div className="max-w-[82%]">
+                  <div className="bg-primary text-primary-foreground px-4 py-3 rounded-2xl rounded-br-sm text-sm leading-relaxed whitespace-pre-wrap">
+                    {q.userAnswer}
+                  </div>
+                </div>
+                <div className="flex-shrink-0 h-8 w-8 rounded-full bg-accent flex items-center justify-center mb-1 shrink-0">
+                  <User className="h-4 w-4 text-accent-foreground" />
                 </div>
               </motion.div>
+            )}
 
-              {/* Answer bubble */}
-              {q.userAnswer && (
-                <motion.div 
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex gap-4 max-w-[85%] ml-auto flex-row-reverse"
-                >
-                  <div className="flex-shrink-0 h-10 w-10 rounded-full bg-accent flex items-center justify-center">
-                    <User className="h-5 w-5 text-accent-foreground" />
-                  </div>
-                  <div className="bg-primary text-primary-foreground px-5 py-3 rounded-2xl rounded-tr-sm shadow-sm">
-                    <p className="leading-relaxed whitespace-pre-wrap">{q.userAnswer}</p>
-                  </div>
-                </motion.div>
-              )}
-
-              {/* Feedback bubble */}
-              {q.aiFeedback && (
-                <motion.div 
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.2 }}
-                  className="flex gap-4 max-w-[85%]"
-                >
-                  <div className="flex-shrink-0 h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20">
-                    <Bot className="h-5 w-5 text-primary" />
-                  </div>
-                  <Card className="bg-card border-border shadow-sm flex-1">
-                    <CardContent className="p-4 space-y-3">
-                      <div className="flex items-center justify-between border-b pb-2">
-                        <div className="font-semibold flex items-center gap-2">
-                          Feedback
-                        </div>
-                        <div className="flex">
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <Star 
-                              key={star} 
-                              className={`h-4 w-4 ${q.rating && star <= q.rating ? "text-yellow-500 fill-yellow-500" : "text-muted fill-muted"}`} 
-                            />
-                          ))}
-                        </div>
+            {/* AI feedback bubble */}
+            {q.aiFeedback && (
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ delay: 0.1 }}
+                className="flex items-end gap-3 max-w-[90%]"
+              >
+                <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/15 flex items-center justify-center border border-primary/25 mb-1 shrink-0">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                </div>
+                <Card className="border border-border/60 shadow-sm flex-1">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                        AI Feedback
+                      </span>
+                      <StarRating rating={q.rating} />
+                    </div>
+                    <p className="text-sm leading-relaxed">{q.aiFeedback}</p>
+                    {q.rating && (
+                      <div
+                        className={`text-xs font-medium px-2 py-0.5 rounded-full w-fit ${
+                          q.rating >= 4
+                            ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                            : q.rating === 3
+                            ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                            : "bg-red-500/10 text-red-600 dark:text-red-400"
+                        }`}
+                      >
+                        {q.rating >= 4 ? "Strong answer" : q.rating === 3 ? "Good effort" : "Needs improvement"}
                       </div>
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{q.aiFeedback}</p>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              )}
-            </div>
-          );
-        })}
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+          </div>
+        ))}
+
+        {/* Typing indicator — shown while AI generates feedback */}
+        <AnimatePresence>
+          {isSubmitting && <TypingIndicator />}
+        </AnimatePresence>
+
         <div ref={messagesEndRef} />
       </div>
 
-      {!isCompleted && currentQuestion && (
-        <div className="flex-none p-4 bg-background border-t">
-          <div className="max-w-4xl mx-auto flex gap-4">
-            <Textarea
-              value={currentAnswer}
-              onChange={(e) => setCurrentAnswer(e.target.value)}
-              placeholder="Type your answer here..."
-              className="resize-none min-h-[80px] max-h-[200px]"
-              disabled={submitMutation.isPending}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                  e.preventDefault();
-                  handleSubmit();
-                }
-              }}
-            />
-            <Button 
-              onClick={handleSubmit} 
-              disabled={!currentAnswer.trim() || submitMutation.isPending}
-              className="h-auto shrink-0 px-6"
-            >
-              {submitMutation.isPending ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <div className="flex flex-col items-center gap-1">
+      {/* ── Input area ── */}
+      <AnimatePresence mode="wait">
+        {!isCompleted && currentQuestion && (
+          <motion.div
+            key="input"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="flex-none border-t bg-background/95 backdrop-blur p-4"
+          >
+            <div className="max-w-3xl mx-auto flex gap-3 items-end">
+              <Textarea
+                ref={textareaRef}
+                value={currentAnswer}
+                onChange={(e) => setCurrentAnswer(e.target.value)}
+                placeholder="Type your answer... (Ctrl/Cmd+Enter to submit)"
+                className="resize-none min-h-[72px] max-h-[200px] text-sm"
+                disabled={isSubmitting}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    handleSubmit();
+                  }
+                }}
+                data-testid="answer-textarea"
+              />
+              <Button
+                onClick={handleSubmit}
+                disabled={!currentAnswer.trim() || isSubmitting}
+                className="h-12 w-12 shrink-0 p-0"
+                data-testid="submit-answer-button"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
                   <Send className="h-5 w-5" />
-                  <span className="text-[10px] uppercase font-bold tracking-wider">Submit</span>
+                )}
+              </Button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Completed state */}
+        {isCompleted && (
+          <motion.div
+            key="completed"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex-none border-t bg-background p-6"
+          >
+            <div className="max-w-sm mx-auto text-center space-y-4">
+              <div className="flex justify-center">
+                <div className="p-4 rounded-full bg-primary/10">
+                  <Trophy className="h-10 w-10 text-primary" />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-xl font-bold">Interview Complete</h3>
+                <p className="text-muted-foreground text-sm mt-1">
+                  You answered {session.answeredQuestions} of {session.totalQuestions} questions.
+                </p>
+              </div>
+              {session.averageRating && (
+                <div className="flex flex-col items-center gap-1">
+                  <div className="flex items-center gap-2">
+                    <StarRating rating={Math.round(session.averageRating)} />
+                    <span className="font-bold text-lg">{session.averageRating.toFixed(1)}</span>
+                    <span className="text-muted-foreground text-sm">/ 5.0</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Average rating</p>
                 </div>
               )}
-            </Button>
-          </div>
-          <div className="text-center mt-2 text-xs text-muted-foreground">Press Cmd/Ctrl + Enter to submit</div>
-        </div>
-      )}
-
-      {isCompleted && (
-        <div className="flex-none p-6 bg-secondary text-center border-t">
-          <CheckCircle2 className="h-12 w-12 text-primary mx-auto mb-3" />
-          <h3 className="text-xl font-bold mb-1">Interview Completed</h3>
-          <p className="text-muted-foreground mb-4">You've answered all questions. Great job!</p>
-          <div className="text-2xl font-bold mb-4">
-            Average Rating: {session.averageRating?.toFixed(1)} / 5.0
-          </div>
-          <Button onClick={() => setLocation("/dashboard")}>
-            Back to Dashboard
-          </Button>
-        </div>
-      )}
+              <div className="flex gap-2">
+                <Button className="flex-1" onClick={() => setLocation("/dashboard")}>
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  Dashboard
+                </Button>
+                <Button variant="outline" className="flex-1" onClick={() => setLocation("/interview")}>
+                  New Interview
+                </Button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

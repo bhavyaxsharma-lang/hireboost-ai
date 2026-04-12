@@ -95,6 +95,15 @@ export const AnalyzeResumeResponse = zod.object({
 });
 
 /**
+ * @summary Get today's resume scan usage for the current user
+ */
+export const GetResumeDailyUsageResponse = zod.object({
+  used: zod.number(),
+  limit: zod.number(),
+  isPro: zod.boolean(),
+});
+
+/**
  * @summary Get past resume analysis history
  */
 export const GetResumeHistoryResponseItem = zod.object({

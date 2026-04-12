@@ -74,6 +74,12 @@ export interface ResumeAnalysis {
   createdAt: string;
 }
 
+export interface ResumeDailyUsage {
+  used: number;
+  limit: number;
+  isPro: boolean;
+}
+
 export interface ResumeAnalysisSummary {
   id: number;
   atsScore: number;

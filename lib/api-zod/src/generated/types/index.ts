@@ -26,6 +26,7 @@ export * from "./messageResponse";
 export * from "./registerBody";
 export * from "./resumeAnalysis";
 export * from "./resumeAnalysisSummary";
+export * from "./resumeDailyUsage";
 export * from "./resumeUploadResponse";
 export * from "./submitAnswerBody";
 export * from "./uploadResumeBody";

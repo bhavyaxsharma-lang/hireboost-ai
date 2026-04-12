@@ -32,6 +32,7 @@ import type {
   RegisterBody,
   ResumeAnalysis,
   ResumeAnalysisSummary,
+  ResumeDailyUsage,
   ResumeUploadResponse,
   SubmitAnswerBody,
   UploadResumeBody,
@@ -620,6 +621,81 @@ export const useAnalyzeResume = <
 > => {
   return useMutation(getAnalyzeResumeMutationOptions(options));
 };
+
+/**
+ * @summary Get today's resume scan usage for the current user
+ */
+export const getGetResumeDailyUsageUrl = () => {
+  return `/api/resume/daily-usage`;
+};
+
+export const getResumeDailyUsage = async (
+  options?: RequestInit,
+): Promise<ResumeDailyUsage> => {
+  return customFetch<ResumeDailyUsage>(getGetResumeDailyUsageUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetResumeDailyUsageQueryKey = () => {
+  return [`/api/resume/daily-usage`] as const;
+};
+
+export const getGetResumeDailyUsageQueryOptions = <
+  TData = Awaited<ReturnType<typeof getResumeDailyUsage>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getResumeDailyUsage>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetResumeDailyUsageQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getResumeDailyUsage>>
+  > = ({ signal }) => getResumeDailyUsage({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getResumeDailyUsage>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetResumeDailyUsageQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getResumeDailyUsage>>
+>;
+export type GetResumeDailyUsageQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get today's resume scan usage for the current user
+ */
+
+export function useGetResumeDailyUsage<
+  TData = Awaited<ReturnType<typeof getResumeDailyUsage>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getResumeDailyUsage>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetResumeDailyUsageQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Get past resume analysis history

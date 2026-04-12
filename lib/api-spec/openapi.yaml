@@ -161,6 +161,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/ResumeAnalysis"
 
+  /resume/daily-usage:
+    get:
+      operationId: getResumeDailyUsage
+      tags: [resume]
+      summary: Get today's resume scan usage for the current user
+      responses:
+        "200":
+          description: Daily usage stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResumeDailyUsage"
+
   /resume/history:
     get:
       operationId: getResumeHistory
@@ -486,6 +499,20 @@ components:
         - overallFeedback
         - resumeText
         - createdAt
+
+    ResumeDailyUsage:
+      type: object
+      properties:
+        used:
+          type: integer
+        limit:
+          type: integer
+        isPro:
+          type: boolean
+      required:
+        - used
+        - limit
+        - isPro
 
     ResumeAnalysisSummary:
       type: object

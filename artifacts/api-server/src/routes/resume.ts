@@ -1,13 +1,42 @@
 // Resume analysis routes
 import { Router } from "express";
 import { db, resumeAnalyses } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, gte, and } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { UploadResumeBody, AnalyzeResumeBody, GetResumeAnalysisParams } from "@workspace/api-zod";
 
 const router = Router();
 
-// POST /resume/upload - parse/extract resume text
+const FREE_DAILY_LIMIT = 2;
+
+// Helper: count how many analyses a user has done today
+async function getDailyUsageCount(userId: number | null): Promise<number> {
+  if (!userId) return 0;
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  const results = await db
+    .select({ id: resumeAnalyses.id })
+    .from(resumeAnalyses)
+    .where(and(eq(resumeAnalyses.userId, userId), gte(resumeAnalyses.createdAt, todayStart)));
+
+  return results.length;
+}
+
+// GET /resume/daily-usage — returns how many scans the user has done today
+router.get("/daily-usage", async (req, res) => {
+  const userId = req.session?.userId ?? null;
+  const used = await getDailyUsageCount(userId);
+
+  res.json({
+    used,
+    limit: FREE_DAILY_LIMIT,
+    isPro: false, // All users are free tier for now
+  });
+});
+
+// POST /resume/upload — extract and return resume text + word count
 router.post("/upload", async (req, res) => {
   const parseResult = UploadResumeBody.safeParse(req.body);
   if (!parseResult.success) {
@@ -24,12 +53,27 @@ router.post("/upload", async (req, res) => {
   });
 });
 
-// POST /resume/analyze - AI analysis of resume
+// POST /resume/analyze — AI analysis with daily limit enforcement
 router.post("/analyze", async (req, res) => {
   const parseResult = AnalyzeResumeBody.safeParse(req.body);
   if (!parseResult.success) {
     res.status(400).json({ error: "Invalid request body" });
     return;
+  }
+
+  const userId = req.session?.userId ?? null;
+
+  // Enforce daily limit for logged-in free users
+  if (userId) {
+    const usedToday = await getDailyUsageCount(userId);
+    if (usedToday >= FREE_DAILY_LIMIT) {
+      res.status(429).json({
+        error: "Daily limit reached",
+        used: usedToday,
+        limit: FREE_DAILY_LIMIT,
+      });
+      return;
+    }
   }
 
   const { resumeText, jobTitle, jobDescription } = parseResult.data;
@@ -75,7 +119,6 @@ Return a JSON object with exactly these fields:
     try {
       analysisData = JSON.parse(content);
     } catch {
-      // Fallback if JSON parse fails
       analysisData = {
         atsScore: 50,
         missingKeywords: ["Could not parse AI response"],
@@ -84,9 +127,6 @@ Return a JSON object with exactly these fields:
         overallFeedback: "Analysis encountered an error. Please try again.",
       };
     }
-
-    // Get userId from session if available
-    const userId = req.session?.userId ?? null;
 
     // Save analysis to database
     const [saved] = await db.insert(resumeAnalyses).values({
@@ -119,7 +159,7 @@ Return a JSON object with exactly these fields:
   }
 });
 
-// GET /resume/history - get resume analysis history
+// GET /resume/history — list past analyses
 router.get("/history", async (req, res) => {
   const userId = req.session?.userId ?? null;
 
@@ -143,7 +183,7 @@ router.get("/history", async (req, res) => {
   }
 });
 
-// GET /resume/history/:id - get specific analysis
+// GET /resume/history/:id — get specific analysis
 router.get("/history/:id", async (req, res) => {
   const parseResult = GetResumeAnalysisParams.safeParse({ id: Number(req.params.id) });
   if (!parseResult.success) {
