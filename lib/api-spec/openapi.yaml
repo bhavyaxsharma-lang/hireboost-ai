@@ -3,13 +3,21 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: HireBoost AI API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: User authentication
+  - name: resume
+    description: Resume analysis operations
+  - name: interview
+    description: Mock interview operations
+  - name: dashboard
+    description: Dashboard and stats
 paths:
   /healthz:
     get:
@@ -24,6 +32,306 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # Auth endpoints
+  /auth/register:
+    post:
+      operationId: registerUser
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterBody"
+      responses:
+        "201":
+          description: User registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: loginUser
+      tags: [auth]
+      summary: Login with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginBody"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logoutUser
+      tags: [auth]
+      summary: Logout current user
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Get current authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # Resume endpoints
+  /resume/upload:
+    post:
+      operationId: uploadResume
+      tags: [resume]
+      summary: Upload and parse resume text
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadResumeBody"
+      responses:
+        "200":
+          description: Resume text extracted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResumeUploadResponse"
+
+  /resume/analyze:
+    post:
+      operationId: analyzeResume
+      tags: [resume]
+      summary: Analyze resume with AI and get ATS score
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzeResumeBody"
+      responses:
+        "200":
+          description: Resume analysis results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResumeAnalysis"
+
+  /resume/history:
+    get:
+      operationId: getResumeHistory
+      tags: [resume]
+      summary: Get past resume analysis history
+      responses:
+        "200":
+          description: List of past analyses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ResumeAnalysisSummary"
+
+  /resume/history/{id}:
+    get:
+      operationId: getResumeAnalysis
+      tags: [resume]
+      summary: Get a specific resume analysis
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Resume analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResumeAnalysis"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # Interview endpoints
+  /interview/sessions:
+    get:
+      operationId: listInterviewSessions
+      tags: [interview]
+      summary: List all interview sessions
+      responses:
+        "200":
+          description: List of interview sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InterviewSession"
+    post:
+      operationId: createInterviewSession
+      tags: [interview]
+      summary: Create a new interview session and generate questions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInterviewSessionBody"
+      responses:
+        "201":
+          description: Created interview session with questions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InterviewSessionWithQuestions"
+
+  /interview/sessions/{id}:
+    get:
+      operationId: getInterviewSession
+      tags: [interview]
+      summary: Get interview session with all Q&A
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Interview session with Q&A
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InterviewSessionWithQuestions"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /interview/sessions/{id}/answer:
+    post:
+      operationId: submitAnswer
+      tags: [interview]
+      summary: Submit an answer and get AI feedback
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitAnswerBody"
+      responses:
+        "200":
+          description: AI feedback on the answer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnswerFeedback"
+
+  /interview/sessions/{id}/complete:
+    post:
+      operationId: completeInterviewSession
+      tags: [interview]
+      summary: Mark interview session as complete
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Session completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InterviewSession"
+
+  # Dashboard endpoints
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: Get dashboard stats summary
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  /dashboard/recent-activity:
+    get:
+      operationId: getRecentActivity
+      tags: [dashboard]
+      summary: Get recent activity feed
+      responses:
+        "200":
+          description: Recent activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +342,356 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
+    # Auth schemas
+    RegisterBody:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+      required:
+        - name
+        - email
+        - password
+
+    LoginBody:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - email
+        - createdAt
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        message:
+          type: string
+      required:
+        - user
+        - message
+
+    # Resume schemas
+    UploadResumeBody:
+      type: object
+      properties:
+        resumeText:
+          type: string
+        fileName:
+          type: ["string", "null"]
+      required:
+        - resumeText
+
+    ResumeUploadResponse:
+      type: object
+      properties:
+        extractedText:
+          type: string
+        wordCount:
+          type: integer
+      required:
+        - extractedText
+        - wordCount
+
+    AnalyzeResumeBody:
+      type: object
+      properties:
+        resumeText:
+          type: string
+        jobTitle:
+          type: ["string", "null"]
+        jobDescription:
+          type: ["string", "null"]
+      required:
+        - resumeText
+
+    ResumeAnalysis:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: ["integer", "null"]
+        atsScore:
+          type: integer
+        missingKeywords:
+          type: array
+          items:
+            type: string
+        suggestions:
+          type: array
+          items:
+            type: string
+        strengths:
+          type: array
+          items:
+            type: string
+        overallFeedback:
+          type: string
+        resumeText:
+          type: string
+        jobTitle:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - atsScore
+        - missingKeywords
+        - suggestions
+        - strengths
+        - overallFeedback
+        - resumeText
+        - createdAt
+
+    ResumeAnalysisSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        atsScore:
+          type: integer
+        jobTitle:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - atsScore
+        - createdAt
+
+    # Interview schemas
+    CreateInterviewSessionBody:
+      type: object
+      properties:
+        jobRole:
+          type: string
+        difficulty:
+          type: string
+          enum: [easy, medium, hard]
+        questionCount:
+          type: integer
+      required:
+        - jobRole
+
+    InterviewQuestion:
+      type: object
+      properties:
+        id:
+          type: integer
+        sessionId:
+          type: integer
+        questionText:
+          type: string
+        questionIndex:
+          type: integer
+        userAnswer:
+          type: ["string", "null"]
+        aiFeedback:
+          type: ["string", "null"]
+        rating:
+          type: ["integer", "null"]
+      required:
+        - id
+        - sessionId
+        - questionText
+        - questionIndex
+
+    InterviewSession:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: ["integer", "null"]
+        jobRole:
+          type: string
+        difficulty:
+          type: string
+        status:
+          type: string
+          enum: [in_progress, completed]
+        averageRating:
+          type: ["number", "null"]
+        totalQuestions:
+          type: integer
+        answeredQuestions:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: ["string", "null"]
+          format: date-time
+      required:
+        - id
+        - jobRole
+        - difficulty
+        - status
+        - totalQuestions
+        - answeredQuestions
+        - createdAt
+
+    InterviewSessionWithQuestions:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: ["integer", "null"]
+        jobRole:
+          type: string
+        difficulty:
+          type: string
+        status:
+          type: string
+          enum: [in_progress, completed]
+        averageRating:
+          type: ["number", "null"]
+        totalQuestions:
+          type: integer
+        answeredQuestions:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: ["string", "null"]
+          format: date-time
+        questions:
+          type: array
+          items:
+            $ref: "#/components/schemas/InterviewQuestion"
+      required:
+        - id
+        - jobRole
+        - difficulty
+        - status
+        - totalQuestions
+        - answeredQuestions
+        - createdAt
+        - questions
+
+    SubmitAnswerBody:
+      type: object
+      properties:
+        questionId:
+          type: integer
+        answer:
+          type: string
+      required:
+        - questionId
+        - answer
+
+    AnswerFeedback:
+      type: object
+      properties:
+        questionId:
+          type: integer
+        feedback:
+          type: string
+        rating:
+          type: integer
+        suggestions:
+          type: array
+          items:
+            type: string
+      required:
+        - questionId
+        - feedback
+        - rating
+        - suggestions
+
+    # Dashboard schemas
+    DashboardStats:
+      type: object
+      properties:
+        latestResumeScore:
+          type: ["integer", "null"]
+        totalResumesAnalyzed:
+          type: integer
+        totalInterviewSessions:
+          type: integer
+        averageInterviewRating:
+          type: ["number", "null"]
+        completedInterviews:
+          type: integer
+        topJobRoles:
+          type: array
+          items:
+            type: string
+      required:
+        - totalResumesAnalyzed
+        - totalInterviewSessions
+        - completedInterviews
+        - topJobRoles
+
+    ActivityItem:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [resume_analysis, interview_session, interview_completed]
+        title:
+          type: string
+        subtitle:
+          type: string
+        score:
+          type: ["integer", "null"]
+        rating:
+          type: ["number", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - type
+        - title
+        - subtitle
+        - createdAt

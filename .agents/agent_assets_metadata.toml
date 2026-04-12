@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "IPS92-63Uu4mrtXqYdRBo"
+uri = "file://artifacts/hireboost-ai/public/hero.png"
+type = "image"
+title = "career coach mobile app hero"
