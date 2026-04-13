@@ -99,6 +99,7 @@ async function buildAll() {
       "playwright",
       "pdf-parse",
       "mammoth",
+      "razorpay",
       "puppeteer",
       "puppeteer-core",
       "electron",
