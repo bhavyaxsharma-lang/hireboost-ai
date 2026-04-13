@@ -97,6 +97,8 @@ async function buildAll() {
       "zeromq",
       "zeromq-prebuilt",
       "playwright",
+      "pdf-parse",
+      "mammoth",
       "puppeteer",
       "puppeteer-core",
       "electron",

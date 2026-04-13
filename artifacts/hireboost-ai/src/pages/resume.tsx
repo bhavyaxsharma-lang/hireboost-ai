@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "wouter";
 import {
   useAnalyzeResume,
@@ -10,8 +10,21 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
@@ -27,10 +40,24 @@ import {
   Lock,
   Sparkles,
   TrendingUp,
+  Upload,
+  X,
+  FileType,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 /* ─────────────────────────────────────────────────────────
-   Circular ATS Score Ring — SVG-based animated ring
+   API base URL helper
+───────────────────────────────────────────────────────── */
+function getApiBase() {
+  const base = import.meta.env.BASE_URL ?? "/";
+  // Trim trailing slash, then prepend /api
+  return base.replace(/\/$/, "") + "/api";
+}
+
+/* ─────────────────────────────────────────────────────────
+   Circular ATS Score Ring
 ───────────────────────────────────────────────────────── */
 function ATSScoreRing({ score }: { score: number }) {
   const [displayScore, setDisplayScore] = useState(0);
@@ -39,12 +66,10 @@ function ATSScoreRing({ score }: { score: number }) {
   const normalizedRadius = radius - stroke / 2;
   const circumference = normalizedRadius * 2 * Math.PI;
 
-  // Color based on score
   const color =
     score >= 75 ? "#84cc16" : score >= 50 ? "#f59e0b" : "#ef4444";
 
   useEffect(() => {
-    // Animate number counting up
     let start = 0;
     const duration = 1200;
     const step = 16;
@@ -66,7 +91,6 @@ function ATSScoreRing({ score }: { score: number }) {
   return (
     <div className="flex flex-col items-center gap-3">
       <svg width={radius * 2} height={radius * 2} className="-rotate-90">
-        {/* Background track */}
         <circle
           cx={radius}
           cy={radius}
@@ -75,7 +99,6 @@ function ATSScoreRing({ score }: { score: number }) {
           stroke="hsl(var(--muted))"
           strokeWidth={stroke}
         />
-        {/* Animated progress arc */}
         <motion.circle
           cx={radius}
           cy={radius}
@@ -91,13 +114,8 @@ function ATSScoreRing({ score }: { score: number }) {
           style={{ filter: `drop-shadow(0 0 6px ${color}88)` }}
         />
       </svg>
-
-      {/* Score number overlay */}
       <div className="absolute flex flex-col items-center">
-        <span
-          className="text-5xl font-black tabular-nums leading-none"
-          style={{ color }}
-        >
+        <span className="text-5xl font-black tabular-nums leading-none" style={{ color }}>
           {displayScore}
         </span>
         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mt-1">
@@ -109,7 +127,7 @@ function ATSScoreRing({ score }: { score: number }) {
 }
 
 /* ─────────────────────────────────────────────────────────
-   Typing Indicator — pulsing dots shown while AI generates
+   AI Thinking Loader (pulsing dots)
 ───────────────────────────────────────────────────────── */
 function AiThinkingLoader() {
   return (
@@ -153,15 +171,11 @@ function UpgradeModal({ open, onClose }: { open: boolean; onClose: () => void })
             Unlock unlimited scans and premium features to land your dream job faster.
           </DialogDescription>
         </DialogHeader>
-
         <div className="space-y-4">
-          {/* Pricing card */}
           <div className="rounded-xl border-2 border-primary bg-primary/5 p-4 text-center">
             <div className="text-3xl font-black text-primary">$9.99</div>
             <div className="text-sm text-muted-foreground">per month — cancel anytime</div>
           </div>
-
-          {/* Features list */}
           <ul className="space-y-2">
             {features.map((f, i) => (
               <li key={i} className="flex items-start gap-2 text-sm">
@@ -170,7 +184,6 @@ function UpgradeModal({ open, onClose }: { open: boolean; onClose: () => void })
               </li>
             ))}
           </ul>
-
           <Button className="w-full" size="lg">
             <Sparkles className="mr-2 h-4 w-4" />
             Start Free 7-Day Trial
@@ -185,7 +198,7 @@ function UpgradeModal({ open, onClose }: { open: boolean; onClose: () => void })
 }
 
 /* ─────────────────────────────────────────────────────────
-   Usage Banner — shown at top of page
+   Usage Banner
 ───────────────────────────────────────────────────────── */
 function UsageBanner({
   used,
@@ -224,12 +237,7 @@ function UsageBanner({
             : `${remaining} free scan${remaining !== 1 ? "s" : ""} remaining today (${used}/${limit} used)`}
         </span>
       </div>
-      <Button
-        size="sm"
-        variant={isExhausted ? "default" : "outline"}
-        onClick={onUpgrade}
-        className="shrink-0"
-      >
+      <Button size="sm" variant={isExhausted ? "default" : "outline"} onClick={onUpgrade} className="shrink-0">
         <Zap className="mr-1.5 h-3.5 w-3.5" />
         Upgrade to Pro
       </Button>
@@ -238,25 +246,245 @@ function UsageBanner({
 }
 
 /* ─────────────────────────────────────────────────────────
+   File Upload Zone — drag & drop + click to browse
+───────────────────────────────────────────────────────── */
+interface ParsedFile {
+  text: string;
+  wordCount: number;
+  fileName: string;
+  fileType: "pdf" | "docx";
+}
+
+function FileUploadZone({
+  onFileParsed,
+  disabled,
+}: {
+  onFileParsed: (result: ParsedFile) => void;
+  disabled?: boolean;
+}) {
+  const [isDragging, setIsDragging] = useState(false);
+  const [isParsing, setIsParsing] = useState(false);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+
+  const parseFile = useCallback(
+    async (file: File) => {
+      // Validate type client-side before sending
+      const allowed = [
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/msword",
+      ];
+      if (!allowed.includes(file.type) && !file.name.match(/\.(pdf|docx|doc)$/i)) {
+        setParseError("Please upload a PDF (.pdf) or Word document (.docx, .doc).");
+        return;
+      }
+
+      setParseError(null);
+      setIsParsing(true);
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const res = await fetch(`${getApiBase()}/resume/parse-file`, {
+          method: "POST",
+          body: formData,
+          credentials: "include",
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error((data as { error?: string }).error ?? "Failed to parse file.");
+        }
+
+        const data = (await res.json()) as ParsedFile;
+        onFileParsed(data);
+        toast({ title: `Parsed "${data.fileName}"`, description: `${data.wordCount} words extracted.` });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to parse file.";
+        setParseError(msg);
+        toast({ title: "Upload failed", description: msg, variant: "destructive" });
+      } finally {
+        setIsParsing(false);
+      }
+    },
+    [onFileParsed, toast]
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragging(false);
+      if (disabled || isParsing) return;
+      const file = e.dataTransfer.files[0];
+      if (file) parseFile(file);
+    },
+    [disabled, isParsing, parseFile]
+  );
+
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) parseFile(file);
+      // Reset so the same file can be re-uploaded
+      e.target.value = "";
+    },
+    [parseFile]
+  );
+
+  return (
+    <div className="space-y-2">
+      <motion.div
+        animate={isDragging ? { scale: 1.02 } : { scale: 1 }}
+        className={`relative flex flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed p-10 text-center transition-colors cursor-pointer
+          ${isDragging ? "border-primary bg-primary/8" : "border-border hover:border-primary/50 hover:bg-muted/30"}
+          ${disabled || isParsing ? "opacity-60 cursor-not-allowed" : ""}`}
+        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={handleDrop}
+        onClick={() => !disabled && !isParsing && inputRef.current?.click()}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          className="hidden"
+          accept=".pdf,.docx,.doc,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
+          onChange={handleChange}
+          disabled={disabled || isParsing}
+        />
+
+        <div className={`p-4 rounded-full ${isDragging ? "bg-primary/15" : "bg-muted"}`}>
+          {isParsing ? (
+            <Loader2 className="h-8 w-8 text-primary animate-spin" />
+          ) : (
+            <Upload className={`h-8 w-8 ${isDragging ? "text-primary" : "text-muted-foreground"}`} />
+          )}
+        </div>
+
+        <div>
+          <p className="text-base font-semibold">
+            {isParsing ? "Extracting text…" : isDragging ? "Drop your file here" : "Upload your resume"}
+          </p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {isParsing
+              ? "This takes just a second"
+              : "Drag & drop or click to browse • PDF, DOCX, DOC — up to 10 MB"}
+          </p>
+        </div>
+
+        {/* File type badges */}
+        {!isParsing && (
+          <div className="flex gap-2">
+            <Badge variant="secondary" className="gap-1.5">
+              <FileType className="h-3 w-3" /> PDF
+            </Badge>
+            <Badge variant="secondary" className="gap-1.5">
+              <FileText className="h-3 w-3" /> DOCX
+            </Badge>
+            <Badge variant="secondary" className="gap-1.5">
+              <FileText className="h-3 w-3" /> DOC
+            </Badge>
+          </div>
+        )}
+      </motion.div>
+
+      {parseError && (
+        <div className="flex items-center gap-2 text-sm text-destructive">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span>{parseError}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   Parsed File Card — shows after successful upload
+───────────────────────────────────────────────────────── */
+function ParsedFileCard({
+  parsed,
+  onClear,
+  showPreview,
+  onTogglePreview,
+}: {
+  parsed: ParsedFile;
+  onClear: () => void;
+  showPreview: boolean;
+  onTogglePreview: () => void;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-3"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="p-2 rounded-lg bg-primary/15 shrink-0">
+            <FileText className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold truncate">{parsed.fileName}</p>
+            <p className="text-xs text-muted-foreground">
+              {parsed.wordCount.toLocaleString()} words extracted
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onTogglePreview} title={showPreview ? "Hide text" : "Preview text"}>
+            {showPreview ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={onClear} title="Remove file">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {showPreview && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <Textarea
+              value={parsed.text}
+              readOnly
+              className="min-h-[160px] max-h-[260px] font-mono text-xs resize-none bg-background/50"
+            />
+            <p className="text-xs text-muted-foreground mt-1">Read-only preview of extracted text</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
    Main Resume Analyzer page
 ───────────────────────────────────────────────────────── */
+type AnalysisResult = {
+  atsScore: number;
+  missingKeywords: string[];
+  suggestions: string[];
+  strengths: string[];
+  overallFeedback: string;
+};
+
 export default function ResumeAnalyzer() {
-  const [resumeText, setResumeText] = useState("");
+  const [parsed, setParsed] = useState<ParsedFile | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
   const [jobTitle, setJobTitle] = useState("");
   const [jobDescription, setJobDescription] = useState("");
-  const [result, setResult] = useState<{
-    atsScore: number;
-    missingKeywords: string[];
-    suggestions: string[];
-    strengths: string[];
-    overallFeedback: string;
-  } | null>(null);
+  const [result, setResult] = useState<AnalysisResult | null>(null);
   const [showUpgrade, setShowUpgrade] = useState(false);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch daily usage
   const { data: usageData } = useGetResumeDailyUsage();
   const analyzeMutation = useAnalyzeResume();
 
@@ -264,8 +492,8 @@ export default function ResumeAnalyzer() {
   const isLimitReached = usageData ? usageData.used >= usageData.limit : false;
 
   const handleAnalyze = () => {
-    if (!resumeText.trim()) {
-      toast({ title: "Missing content", description: "Please paste your resume text.", variant: "destructive" });
+    if (!parsed?.text.trim()) {
+      toast({ title: "No file", description: "Please upload your resume first.", variant: "destructive" });
       return;
     }
     if (isLimitReached) {
@@ -274,7 +502,13 @@ export default function ResumeAnalyzer() {
     }
 
     analyzeMutation.mutate(
-      { data: { resumeText, jobTitle: jobTitle || undefined, jobDescription: jobDescription || undefined } },
+      {
+        data: {
+          resumeText: parsed.text,
+          jobTitle: jobTitle || undefined,
+          jobDescription: jobDescription || undefined,
+        },
+      },
       {
         onSuccess: (data) => {
           setResult({
@@ -284,7 +518,6 @@ export default function ResumeAnalyzer() {
             strengths: data.strengths,
             overallFeedback: data.overallFeedback,
           });
-          // Refresh usage count after successful analysis
           queryClient.invalidateQueries({ queryKey: getGetResumeDailyUsageQueryKey() });
           toast({ title: "Analysis complete!" });
         },
@@ -313,10 +546,11 @@ export default function ResumeAnalyzer() {
     <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Resume Analyzer</h1>
-        <p className="text-muted-foreground mt-1">Get an instant ATS score and tailored improvements powered by AI.</p>
+        <p className="text-muted-foreground mt-1">
+          Upload your resume and get an instant ATS score with tailored AI feedback.
+        </p>
       </div>
 
-      {/* Usage banner */}
       {usageData && (
         <UsageBanner used={usageData.used} limit={usageData.limit} onUpgrade={() => setShowUpgrade(true)} />
       )}
@@ -325,27 +559,55 @@ export default function ResumeAnalyzer() {
         {!result ? (
           <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <div className="grid lg:grid-cols-3 gap-6">
-              {/* Resume text input */}
+
+              {/* ── Left: Upload + file card ── */}
               <Card className="lg:col-span-2 border-border/50 shadow-sm">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-primary" /> Resume Content
+                    <Upload className="h-5 w-5 text-primary" /> Upload Resume
                   </CardTitle>
-                  <CardDescription>Paste your full resume text to begin analysis.</CardDescription>
+                  <CardDescription>
+                    Supports PDF, DOCX, and DOC files up to 10 MB.
+                  </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <Textarea
-                    placeholder="Paste your resume here..."
-                    className="min-h-[380px] font-mono text-sm resize-y"
-                    value={resumeText}
-                    onChange={(e) => setResumeText(e.target.value)}
-                    disabled={isAnalyzing}
-                    data-testid="resume-textarea"
-                  />
+                <CardContent className="space-y-4">
+                  {!parsed ? (
+                    <FileUploadZone
+                      onFileParsed={setParsed}
+                      disabled={isAnalyzing || isLimitReached}
+                    />
+                  ) : (
+                    <ParsedFileCard
+                      parsed={parsed}
+                      onClear={() => { setParsed(null); setShowPreview(false); }}
+                      showPreview={showPreview}
+                      onTogglePreview={() => setShowPreview((v) => !v)}
+                    />
+                  )}
+
+                  {/* AI thinking loader */}
+                  <AnimatePresence>
+                    {isAnalyzing && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        className="flex items-start gap-4 pt-2"
+                      >
+                        <div className="flex-shrink-0 h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20">
+                          <Sparkles className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium text-muted-foreground">AI is analyzing your resume…</p>
+                          <AiThinkingLoader />
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </CardContent>
               </Card>
 
-              {/* Target role + action */}
+              {/* ── Right: Target role + analyze ── */}
               <div className="space-y-4">
                 <Card className="border-border/50 shadow-sm">
                   <CardHeader>
@@ -369,7 +631,7 @@ export default function ResumeAnalyzer() {
                       <Label htmlFor="jobDescription">Job Description</Label>
                       <Textarea
                         id="jobDescription"
-                        placeholder="Paste the job description..."
+                        placeholder="Paste the job description…"
                         className="min-h-[120px] text-sm resize-y"
                         value={jobDescription}
                         onChange={(e) => setJobDescription(e.target.value)}
@@ -382,36 +644,24 @@ export default function ResumeAnalyzer() {
                       className="w-full"
                       size="lg"
                       onClick={handleAnalyze}
-                      disabled={isAnalyzing || !resumeText.trim() || isLimitReached}
-                      data-testid="analyze-button"
+                      disabled={isAnalyzing || !parsed || isLimitReached}
                     >
                       {isAnalyzing ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Analyzing...
-                        </>
+                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analyzing…</>
                       ) : isLimitReached ? (
-                        <>
-                          <Lock className="mr-2 h-4 w-4" />
-                          Limit Reached
-                        </>
+                        <><Lock className="mr-2 h-4 w-4" /> Limit Reached</>
                       ) : (
-                        <>
-                          <LayoutTemplate className="mr-2 h-4 w-4" />
-                          Analyze Resume
-                        </>
+                        <><LayoutTemplate className="mr-2 h-4 w-4" /> Analyze Resume</>
                       )}
                     </Button>
                     {isLimitReached && (
                       <Button variant="outline" className="w-full" onClick={() => setShowUpgrade(true)}>
-                        <Zap className="mr-2 h-4 w-4 text-primary" />
-                        Upgrade to Pro
+                        <Zap className="mr-2 h-4 w-4 text-primary" /> Upgrade to Pro
                       </Button>
                     )}
                   </CardFooter>
                 </Card>
 
-                {/* Upgrade to Pro teaser card */}
                 {!isLimitReached && (
                   <Card
                     className="border-primary/30 bg-primary/5 cursor-pointer hover:bg-primary/10 transition-colors"
@@ -434,26 +684,6 @@ export default function ResumeAnalyzer() {
                 )}
               </div>
             </div>
-
-            {/* AI thinking loader shown while analyzing */}
-            <AnimatePresence>
-              {isAnalyzing && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="mt-4 flex items-start gap-4"
-                >
-                  <div className="flex-shrink-0 h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20">
-                    <Sparkles className="h-4 w-4 text-primary" />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-muted-foreground">AI is reading your resume...</p>
-                    <AiThinkingLoader />
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
           </motion.div>
         ) : (
           /* ──── Results View ──── */
@@ -465,7 +695,7 @@ export default function ResumeAnalyzer() {
             className="space-y-6"
           >
             <div className="flex items-center justify-between">
-              <Button variant="outline" onClick={() => setResult(null)}>
+              <Button variant="outline" onClick={() => { setResult(null); setParsed(null); setShowPreview(false); }}>
                 Analyze Another
               </Button>
               <Link href="/history">
@@ -484,26 +714,24 @@ export default function ResumeAnalyzer() {
                   </div>
                   <Badge
                     className="mt-4"
-                    variant={
-                      result.atsScore >= 75 ? "default" : result.atsScore >= 50 ? "secondary" : "destructive"
-                    }
+                    variant={result.atsScore >= 75 ? "default" : result.atsScore >= 50 ? "secondary" : "destructive"}
                   >
-                    {result.atsScore >= 75
-                      ? "Strong Match"
-                      : result.atsScore >= 50
-                      ? "Needs Work"
-                      : "Low Match"}
+                    {result.atsScore >= 75 ? "Strong Match" : result.atsScore >= 50 ? "Needs Work" : "Low Match"}
                   </Badge>
                 </Card>
               </motion.div>
 
               <motion.div variants={itemVariants} className="md:col-span-2">
                 <Card className="h-full border-border/50 shadow-sm">
-                  <CardHeader>
-                    <CardTitle>Overall Feedback</CardTitle>
-                  </CardHeader>
+                  <CardHeader><CardTitle>Overall Feedback</CardTitle></CardHeader>
                   <CardContent>
                     <p className="text-muted-foreground leading-relaxed">{result.overallFeedback}</p>
+                    {parsed && (
+                      <p className="text-xs text-muted-foreground mt-4 flex items-center gap-1.5">
+                        <FileText className="h-3.5 w-3.5" />
+                        {parsed.fileName} — {parsed.wordCount.toLocaleString()} words
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               </motion.div>
@@ -522,13 +750,7 @@ export default function ResumeAnalyzer() {
                   <CardContent>
                     <ul className="space-y-2">
                       {result.missingKeywords.map((kw, i) => (
-                        <motion.li
-                          key={i}
-                          initial={{ opacity: 0, x: -8 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: i * 0.05 }}
-                          className="flex items-center gap-2 text-sm"
-                        >
+                        <motion.li key={i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }} className="flex items-center gap-2 text-sm">
                           <div className="w-1.5 h-1.5 rounded-full bg-destructive shrink-0" />
                           <span className="font-medium">{kw}</span>
                         </motion.li>
@@ -549,13 +771,7 @@ export default function ResumeAnalyzer() {
                   <CardContent>
                     <ul className="space-y-2">
                       {result.strengths.map((s, i) => (
-                        <motion.li
-                          key={i}
-                          initial={{ opacity: 0, x: -8 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: i * 0.05 }}
-                          className="flex items-center gap-2 text-sm"
-                        >
+                        <motion.li key={i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }} className="flex items-center gap-2 text-sm">
                           <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
                           <span>{s}</span>
                         </motion.li>
@@ -576,13 +792,7 @@ export default function ResumeAnalyzer() {
                 <CardContent>
                   <ul className="space-y-3">
                     {result.suggestions.map((sug, i) => (
-                      <motion.li
-                        key={i}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.06 }}
-                        className="flex gap-3 bg-muted/50 p-3 rounded-lg text-sm"
-                      >
+                      <motion.li key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }} className="flex gap-3 bg-muted/50 p-3 rounded-lg text-sm">
                         <span className="font-bold text-blue-500 shrink-0">{i + 1}.</span>
                         <span>{sug}</span>
                       </motion.li>
@@ -595,7 +805,6 @@ export default function ResumeAnalyzer() {
         )}
       </AnimatePresence>
 
-      {/* Upgrade modal */}
       <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
     </div>
   );
