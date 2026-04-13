@@ -21,8 +21,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   FileText, Loader2, AlertCircle, CheckCircle2, ChevronRight,
   Target, LayoutTemplate, Zap, Lock, Sparkles, TrendingUp,
-  Upload, X, FileType, Eye, EyeOff, Copy, Download, Wand2,
-  IndianRupee,
+  Upload, X, FileType, Eye, EyeOff,
 } from "lucide-react";
 import { RoleCombobox } from "@/components/role-combobox";
 
