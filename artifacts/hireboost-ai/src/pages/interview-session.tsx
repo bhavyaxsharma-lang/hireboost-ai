@@ -90,8 +90,8 @@ export default function InterviewSession() {
     query: { enabled: !!sessionId },
   });
 
-  const submitMutation = useSubmitAnswer(sessionId);
-  const completeMutation = useCompleteInterviewSession(sessionId);
+  const submitMutation = useSubmitAnswer();
+  const completeMutation = useCompleteInterviewSession();
 
   const [currentAnswer, setCurrentAnswer] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -135,7 +135,7 @@ export default function InterviewSession() {
     await new Promise((r) => setTimeout(r, 50));
 
     submitMutation.mutate(
-      { data: { questionId: currentQuestion.id, answer: currentAnswer } },
+      { id: sessionId, data: { questionId: currentQuestion.id, answer: currentAnswer } },
       {
         onSuccess: () => {
           setCurrentAnswer("");
@@ -148,7 +148,7 @@ export default function InterviewSession() {
           const isLastQuestion =
             session.answeredQuestions + 1 >= session.totalQuestions;
           if (isLastQuestion) {
-            completeMutation.mutate(undefined, {
+            completeMutation.mutate({ id: sessionId }, {
               onSuccess: () => {
                 queryClient.invalidateQueries({
                   queryKey: getGetInterviewSessionQueryKey(sessionId),
@@ -168,7 +168,7 @@ export default function InterviewSession() {
 
   const handleFinishEarly = () => {
     if (!confirm("End the interview early?")) return;
-    completeMutation.mutate(undefined, {
+    completeMutation.mutate({ id: sessionId }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetInterviewSessionQueryKey(sessionId) });
         toast({ title: "Interview ended." });

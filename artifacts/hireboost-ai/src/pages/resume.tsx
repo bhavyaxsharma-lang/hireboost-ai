@@ -8,7 +8,6 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter,
@@ -25,6 +24,7 @@ import {
   Upload, X, FileType, Eye, EyeOff, Copy, Download, Wand2,
   IndianRupee,
 } from "lucide-react";
+import { RoleCombobox } from "@/components/role-combobox";
 
 /* ─────────────────────────────────────────────────────────
    Types
@@ -623,8 +623,13 @@ export default function ResumeAnalyzer() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-1.5">
-                      <Label htmlFor="jobTitle">Job Title</Label>
-                      <Input id="jobTitle" placeholder="e.g. RPA Developer" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} disabled={isAnalyzing} />
+                      <Label>Job Title</Label>
+                      <RoleCombobox
+                        value={jobTitle}
+                        onChange={setJobTitle}
+                        placeholder="Select or search a role…"
+                        disabled={isAnalyzing}
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="jobDescription">Job Description</Label>
