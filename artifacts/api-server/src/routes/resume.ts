@@ -53,7 +53,7 @@ router.post("/upload", async (req, res) => {
   });
 });
 
-// POST /resume/analyze — AI analysis with daily limit enforcement
+// POST /resume/analyze — AI analysis (unlimited, no rate limiting)
 router.post("/analyze", async (req, res) => {
   const parseResult = AnalyzeResumeBody.safeParse(req.body);
   if (!parseResult.success) {
@@ -62,20 +62,6 @@ router.post("/analyze", async (req, res) => {
   }
 
   const userId = req.session?.userId ?? null;
-
-  // Enforce daily limit for logged-in free users
-  if (userId) {
-    const usedToday = await getDailyUsageCount(userId);
-    if (usedToday >= FREE_DAILY_LIMIT) {
-      res.status(429).json({
-        error: "Daily limit reached",
-        used: usedToday,
-        limit: FREE_DAILY_LIMIT,
-      });
-      return;
-    }
-  }
-
   const { resumeText, jobTitle, jobDescription } = parseResult.data;
 
   const systemPrompt = `You are an expert ATS (Applicant Tracking System) analyzer and career coach. 
