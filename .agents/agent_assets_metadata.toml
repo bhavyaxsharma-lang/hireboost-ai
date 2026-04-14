@@ -1,8 +1,13 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "IPS92-63Uu4mrtXqYdRBo"
 uri = "file://artifacts/hireboost-ai/public/hero.png"
 type = "image"
 title = "career coach mobile app hero"
+
+[[outputs]]
+id = "_pJXUAAYl_WnqaVq8smdH"
+uri = "file://myapp.zip"
+type = "unspecified"
+title = "myapp.zip"
