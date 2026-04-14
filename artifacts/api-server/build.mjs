@@ -99,6 +99,7 @@ async function buildAll() {
       "playwright",
       "pdf-parse",
       "mammoth",
+      "connect-pg-simple",
       "puppeteer",
       "puppeteer-core",
       "electron",
