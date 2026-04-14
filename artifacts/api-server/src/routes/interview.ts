@@ -33,6 +33,7 @@ function formatSession(session: typeof interviewSessions.$inferSelect, questions
       questionIndex: q.questionIndex,
       userAnswer: q.userAnswer,
       aiFeedback: q.aiFeedback,
+      sampleAnswer: q.sampleAnswer,
       rating: q.rating,
     })),
   };
@@ -195,17 +196,18 @@ router.post("/sessions/:id/answer", async (req, res) => {
     }
 
     // Get AI feedback
-    const prompt = `You are an expert interview coach. Evaluate this interview answer:
+    const prompt = `You are an expert interview coach. Evaluate this interview answer and provide a sample model answer.
 
 Question: ${question.questionText}
 
-Answer: ${answer}
+Candidate's Answer: ${answer}
 
-Return ONLY valid JSON with these fields:
+Return ONLY valid JSON with exactly these fields:
 {
-  "feedback": "<2-3 sentence specific feedback>",
+  "feedback": "<2-3 sentence specific, constructive feedback on the candidate's answer>",
   "rating": <integer 1-5>,
-  "suggestions": [<2-3 specific improvement tips>]
+  "suggestions": [<2-3 specific improvement tips>],
+  "sampleAnswer": "<A strong model answer for this question using the STAR method or best practice structure, 3-6 sentences, specific and compelling — this is an ideal reference answer the candidate can learn from>"
 }`;
 
     const completion = await openai.chat.completions.create({
@@ -215,7 +217,7 @@ Return ONLY valid JSON with these fields:
     });
 
     const content = completion.choices[0]?.message?.content ?? "{}";
-    let feedbackData: { feedback: string; rating: number; suggestions: string[] };
+    let feedbackData: { feedback: string; rating: number; suggestions: string[]; sampleAnswer: string };
 
     try {
       feedbackData = JSON.parse(content) as typeof feedbackData;
@@ -224,17 +226,19 @@ Return ONLY valid JSON with these fields:
         feedback: "Good effort! Keep practicing to improve your responses.",
         rating: 3,
         suggestions: ["Be more specific", "Use the STAR method", "Show impact with numbers"],
+        sampleAnswer: "A strong answer would use the STAR method: describe the Situation, explain the Task you were responsible for, detail the Actions you took, and share the measurable Results you achieved.",
       };
     }
 
     // Clamp rating 1-5
     feedbackData.rating = Math.max(1, Math.min(5, Math.round(feedbackData.rating)));
 
-    // Update the question with the answer and feedback
+    // Update the question with the answer, feedback, and sample answer
     await db.update(interviewQuestions)
       .set({
         userAnswer: answer,
         aiFeedback: feedbackData.feedback,
+        sampleAnswer: feedbackData.sampleAnswer ?? null,
         rating: feedbackData.rating,
       })
       .where(eq(interviewQuestions.id, questionId));
@@ -253,6 +257,7 @@ Return ONLY valid JSON with these fields:
       feedback: feedbackData.feedback,
       rating: feedbackData.rating,
       suggestions: feedbackData.suggestions,
+      sampleAnswer: feedbackData.sampleAnswer,
     });
   } catch (err) {
     req.log.error({ err }, "Error submitting answer");

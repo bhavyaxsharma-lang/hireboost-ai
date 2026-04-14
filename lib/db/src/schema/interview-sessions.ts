@@ -22,6 +22,7 @@ export const interviewQuestions = pgTable("interview_questions", {
   questionIndex: integer("question_index").notNull(),
   userAnswer: text("user_answer"),
   aiFeedback: text("ai_feedback"),
+  sampleAnswer: text("sample_answer"),
   rating: integer("rating"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });

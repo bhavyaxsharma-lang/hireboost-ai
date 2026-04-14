@@ -22,6 +22,7 @@ import {
   Sparkles,
   ChevronRight,
   Trophy,
+  Lightbulb,
 } from "lucide-react";
 
 /* ─────────────────────────────────────────────────────────
@@ -296,25 +297,43 @@ export default function InterviewSession() {
                   <Sparkles className="h-4 w-4 text-primary" />
                 </div>
                 <Card className="border border-border/60 shadow-sm flex-1">
-                  <CardContent className="p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        AI Feedback
-                      </span>
-                      <StarRating rating={q.rating} />
+                  <CardContent className="p-4 space-y-4">
+                    {/* Feedback section */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          AI Feedback
+                        </span>
+                        <StarRating rating={q.rating} />
+                      </div>
+                      <p className="text-sm leading-relaxed">{q.aiFeedback}</p>
+                      {q.rating && (
+                        <div
+                          className={`text-xs font-medium px-2 py-0.5 rounded-full w-fit ${
+                            q.rating >= 4
+                              ? "bg-green-500/10 text-green-600 dark:text-green-400"
+                              : q.rating === 3
+                              ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                              : "bg-red-500/10 text-red-600 dark:text-red-400"
+                          }`}
+                        >
+                          {q.rating >= 4 ? "Strong answer" : q.rating === 3 ? "Good effort" : "Needs improvement"}
+                        </div>
+                      )}
                     </div>
-                    <p className="text-sm leading-relaxed">{q.aiFeedback}</p>
-                    {q.rating && (
-                      <div
-                        className={`text-xs font-medium px-2 py-0.5 rounded-full w-fit ${
-                          q.rating >= 4
-                            ? "bg-green-500/10 text-green-600 dark:text-green-400"
-                            : q.rating === 3
-                            ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                            : "bg-red-500/10 text-red-600 dark:text-red-400"
-                        }`}
-                      >
-                        {q.rating >= 4 ? "Strong answer" : q.rating === 3 ? "Good effort" : "Needs improvement"}
+
+                    {/* Sample answer section */}
+                    {q.sampleAnswer && (
+                      <div className="border-t border-border/50 pt-3 space-y-2">
+                        <div className="flex items-center gap-1.5">
+                          <Lightbulb className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                          <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                            Sample Answer
+                          </span>
+                        </div>
+                        <p className="text-sm leading-relaxed text-muted-foreground italic bg-amber-500/5 border border-amber-500/20 rounded-lg px-3 py-2">
+                          {q.sampleAnswer}
+                        </p>
                       </div>
                     )}
                   </CardContent>

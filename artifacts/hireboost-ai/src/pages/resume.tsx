@@ -223,26 +223,141 @@ function ParsedFileCard({ parsed, onClear, showPreview, onTogglePreview }: {
 }
 
 /* ─────────────────────────────────────────────────────────
+   DOCX builder — parse resume plain text → styled DOCX
+───────────────────────────────────────────────────────── */
+const SECTION_HEADERS = new Set([
+  "SUMMARY", "PROFESSIONAL SUMMARY", "OBJECTIVE", "PROFILE",
+  "EXPERIENCE", "WORK EXPERIENCE", "PROFESSIONAL EXPERIENCE", "EMPLOYMENT HISTORY",
+  "EDUCATION", "EDUCATIONAL BACKGROUND", "ACADEMIC BACKGROUND",
+  "SKILLS", "TECHNICAL SKILLS", "CORE COMPETENCIES", "COMPETENCIES", "KEY SKILLS",
+  "PROJECTS", "KEY PROJECTS", "NOTABLE PROJECTS",
+  "CERTIFICATIONS", "CERTIFICATES", "LICENSES", "AWARDS", "ACHIEVEMENTS",
+  "PUBLICATIONS", "LANGUAGES", "INTERESTS", "VOLUNTEER", "VOLUNTEERING",
+  "REFERENCES", "CONTACT", "CONTACT INFORMATION",
+]);
+
+function isHeaderLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.length > 60) return false;
+  const upper = trimmed.toUpperCase().replace(/:$/, "");
+  if (SECTION_HEADERS.has(upper)) return true;
+  if (trimmed === trimmed.toUpperCase() && /[A-Z]/.test(trimmed) && !trimmed.includes("@")) return true;
+  return false;
+}
+
+async function buildDocx(text: string, fileName: string): Promise<void> {
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle } = await import("docx");
+
+  const lines = text.split(/\r?\n/);
+
+  // Detect name block (first non-empty lines before first section header)
+  let nameDetected = false;
+  const docChildren: InstanceType<typeof Paragraph>[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const line = raw.trim();
+
+    if (!line) {
+      docChildren.push(new Paragraph({ text: "" }));
+      continue;
+    }
+
+    if (isHeaderLine(line)) {
+      nameDetected = true;
+      docChildren.push(
+        new Paragraph({
+          text: line.replace(/:$/, ""),
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 280, after: 100 },
+          border: {
+            bottom: { style: BorderStyle.SINGLE, size: 6, color: "84CC16", space: 1 },
+          },
+        }),
+      );
+      continue;
+    }
+
+    // Very first non-empty content before any section → treat as name/title block
+    if (!nameDetected && i < 8) {
+      if (i === 0 || (i <= 2 && !lines.slice(0, i).some((l) => l.trim()))) {
+        docChildren.push(
+          new Paragraph({
+            children: [new TextRun({ text: line, bold: true, size: 32, color: "111827" })],
+            alignment: AlignmentType.LEFT,
+            spacing: { after: 60 },
+          }),
+        );
+        continue;
+      }
+    }
+
+    // Bullet point
+    const isBullet = /^[-•·▸►]\s/.test(line);
+    const bulletText = isBullet ? line.replace(/^[-•·▸►]\s+/, "") : line;
+
+    docChildren.push(
+      new Paragraph({
+        children: [new TextRun({ text: bulletText, size: 22 })],
+        bullet: isBullet ? { level: 0 } : undefined,
+        indent: isBullet ? { left: 360 } : undefined,
+        spacing: { after: 60 },
+      }),
+    );
+  }
+
+  const doc = new Document({
+    styles: {
+      default: {
+        document: {
+          run: { font: "Calibri", size: 22, color: "1F2937" },
+        },
+      },
+    },
+    sections: [{
+      properties: {
+        page: {
+          margin: { top: 720, bottom: 720, left: 900, right: 900 },
+        },
+      },
+      children: docChildren,
+    }],
+  });
+
+  const blob = await Packer.toBlob(doc);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const base = fileName.replace(/\.[^.]+$/, "");
+  a.href = url;
+  a.download = `${base}_improved.docx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ─────────────────────────────────────────────────────────
    Improved Resume Card
 ───────────────────────────────────────────────────────── */
 function ImprovedResumeCard({ text, originalFileName }: { text: string; originalFileName: string }) {
   const { toast } = useToast();
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(text);
     toast({ title: "Copied to clipboard!" });
   };
 
-  const handleDownload = () => {
-    const blob = new Blob([text], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    const base = originalFileName.replace(/\.[^.]+$/, "");
-    a.href = url;
-    a.download = `${base}_improved.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast({ title: "Downloaded!" });
+  const handleDownload = async () => {
+    setIsDownloading(true);
+    try {
+      await buildDocx(text, originalFileName);
+      toast({ title: "Downloaded as DOCX!" });
+    } catch {
+      toast({ title: "Download failed", description: "Try copying the text instead.", variant: "destructive" });
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   return (
@@ -267,8 +382,10 @@ function ImprovedResumeCard({ text, originalFileName }: { text: string; original
               <Button variant="outline" size="sm" onClick={handleCopy}>
                 <Copy className="mr-1.5 h-4 w-4" /> Copy
               </Button>
-              <Button size="sm" onClick={handleDownload}>
-                <Download className="mr-1.5 h-4 w-4" /> Download
+              <Button size="sm" onClick={handleDownload} disabled={isDownloading}>
+                {isDownloading
+                  ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Building…</>
+                  : <><Download className="mr-1.5 h-4 w-4" /> Download DOCX</>}
               </Button>
             </div>
           </div>
