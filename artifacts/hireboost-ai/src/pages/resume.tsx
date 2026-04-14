@@ -28,25 +28,6 @@ import { RoleCombobox } from "@/components/role-combobox";
 /* ─────────────────────────────────────────────────────────
    Types
 ───────────────────────────────────────────────────────── */
-declare global {
-  interface Window {
-    Razorpay: new (opts: RazorpayOptions) => { open(): void };
-  }
-}
-
-interface RazorpayOptions {
-  key: string;
-  amount: number;
-  currency: string;
-  name: string;
-  description: string;
-  order_id: string;
-  handler: (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => void;
-  prefill?: { name?: string; email?: string };
-  theme?: { color?: string };
-  modal?: { ondismiss?: () => void };
-}
-
 interface ParsedFile {
   text: string;
   wordCount: number;
@@ -62,24 +43,11 @@ type AnalysisResult = {
   overallFeedback: string;
 };
 
-type AutoFixState = "idle" | "paying" | "rewriting" | "done";
-
 /* ─────────────────────────────────────────────────────────
    Helpers
 ───────────────────────────────────────────────────────── */
 function getApiBase() {
   return (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "") + "/api";
-}
-
-async function loadRazorpayScript(): Promise<boolean> {
-  if (window.Razorpay) return true;
-  return new Promise((resolve) => {
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
-  });
 }
 
 /* ─────────────────────────────────────────────────────────
@@ -316,216 +284,6 @@ function ParsedFileCard({ parsed, onClear, showPreview, onTogglePreview }: {
 }
 
 /* ─────────────────────────────────────────────────────────
-   Improved Resume Card — shown after successful rewrite
-───────────────────────────────────────────────────────── */
-function ImprovedResumeCard({ text, originalFileName }: { text: string; originalFileName: string }) {
-  const { toast } = useToast();
-
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(text);
-    toast({ title: "Copied to clipboard!" });
-  };
-
-  const handleDownload = () => {
-    const blob = new Blob([text], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    const base = originalFileName.replace(/\.[^.]+$/, "");
-    a.href = url;
-    a.download = `${base}_improved.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast({ title: "Downloaded!" });
-  };
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ type: "spring", stiffness: 200, damping: 22 }}
-    >
-      <Card className="border-2 border-primary shadow-lg">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-primary/10">
-                <Wand2 className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <CardTitle>Your Improved Resume</CardTitle>
-                <CardDescription>AI-optimized with all suggestions applied</CardDescription>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={handleCopy}>
-                <Copy className="mr-1.5 h-4 w-4" /> Copy
-              </Button>
-              <Button size="sm" onClick={handleDownload}>
-                <Download className="mr-1.5 h-4 w-4" /> Download
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <Textarea
-            value={text}
-            readOnly
-            className="min-h-[520px] font-mono text-sm resize-y bg-muted/30 leading-relaxed"
-          />
-        </CardContent>
-      </Card>
-    </motion.div>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────
-   Auto-Fix Button with Razorpay payment flow
-───────────────────────────────────────────────────────── */
-function AutoFixButton({
-  parsed,
-  result,
-  jobTitle,
-  onImproved,
-}: {
-  parsed: ParsedFile | null;
-  result: AnalysisResult;
-  jobTitle: string;
-  onImproved: (text: string) => void;
-}) {
-  const [autoFixState, setAutoFixState] = useState<AutoFixState>("idle");
-  const { toast } = useToast();
-
-  const handleAutoFix = async () => {
-    if (!parsed) return;
-
-    setAutoFixState("paying");
-
-    // Load Razorpay checkout script
-    const loaded = await loadRazorpayScript();
-    if (!loaded) {
-      toast({ title: "Payment failed", description: "Could not load payment gateway. Check your internet connection.", variant: "destructive" });
-      setAutoFixState("idle");
-      return;
-    }
-
-    // Create order on backend
-    let orderData: { orderId: string; amount: number; currency: string; keyId: string };
-    try {
-      const res = await fetch(`${getApiBase()}/payment/create-order`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ amount: 9900, currency: "INR" }),
-      });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        throw new Error((d as { error?: string }).error ?? "Order creation failed.");
-      }
-      orderData = await res.json();
-    } catch (err) {
-      toast({ title: "Payment error", description: err instanceof Error ? err.message : "Could not create order.", variant: "destructive" });
-      setAutoFixState("idle");
-      return;
-    }
-
-    // Open Razorpay checkout
-    const rzp = new window.Razorpay({
-      key: orderData.keyId,
-      amount: orderData.amount,
-      currency: orderData.currency,
-      name: "HireBoost AI",
-      description: "Resume Auto-Fix — AI rewrite with all improvements applied",
-      order_id: orderData.orderId,
-      theme: { color: "#84cc16" },
-      modal: {
-        ondismiss: () => {
-          setAutoFixState("idle");
-          toast({ title: "Payment cancelled" });
-        },
-      },
-      handler: async (response) => {
-        setAutoFixState("rewriting");
-
-        // Verify payment
-        try {
-          const verifyRes = await fetch(`${getApiBase()}/payment/verify`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({
-              orderId: response.razorpay_order_id,
-              paymentId: response.razorpay_payment_id,
-              signature: response.razorpay_signature,
-            }),
-          });
-          if (!verifyRes.ok) throw new Error("Payment verification failed.");
-          const { paymentId } = await verifyRes.json() as { success: boolean; paymentId: string };
-
-          // Call rewrite API
-          const rewriteRes = await fetch(`${getApiBase()}/resume/rewrite`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({
-              resumeText: parsed.text,
-              atsScore: result.atsScore,
-              missingKeywords: result.missingKeywords,
-              suggestions: result.suggestions,
-              strengths: result.strengths,
-              overallFeedback: result.overallFeedback,
-              jobTitle: jobTitle || undefined,
-              paymentId,
-            }),
-          });
-          if (!rewriteRes.ok) {
-            const d = await rewriteRes.json().catch(() => ({}));
-            throw new Error((d as { error?: string }).error ?? "Rewrite failed.");
-          }
-          const { improvedResume } = await rewriteRes.json() as { improvedResume: string };
-          setAutoFixState("done");
-          onImproved(improvedResume);
-          toast({ title: "Resume rewritten!", description: "Your optimized resume is ready to download." });
-        } catch (err) {
-          toast({ title: "Error", description: err instanceof Error ? err.message : "Something went wrong.", variant: "destructive" });
-          setAutoFixState("idle");
-        }
-      },
-    });
-
-    rzp.open();
-  };
-
-  if (autoFixState === "rewriting") {
-    return (
-      <div className="mt-4">
-        <AiThinkingLoader label="AI is rewriting your resume with all improvements…" />
-      </div>
-    );
-  }
-
-  return (
-    <Button
-      size="lg"
-      className="w-full bg-gradient-to-r from-primary to-lime-500 text-primary-foreground font-bold shadow-lg hover:opacity-90"
-      onClick={handleAutoFix}
-      disabled={autoFixState !== "idle" || !parsed}
-    >
-      {autoFixState === "paying" ? (
-        <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Opening payment…</>
-      ) : (
-        <>
-          <Wand2 className="mr-2 h-5 w-5" />
-          Auto-Fix My Resume
-          <span className="ml-2 flex items-center text-sm font-semibold opacity-90">
-            <IndianRupee className="h-3.5 w-3.5" />99
-          </span>
-        </>
-      )}
-    </Button>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────
    Main Page
 ───────────────────────────────────────────────────────── */
 export default function ResumeAnalyzer() {
@@ -534,7 +292,6 @@ export default function ResumeAnalyzer() {
   const [jobTitle, setJobTitle] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [result, setResult] = useState<AnalysisResult | null>(null);
-  const [improvedResume, setImprovedResume] = useState<string | null>(null);
   const [showUpgrade, setShowUpgrade] = useState(false);
 
   const { toast } = useToast();
@@ -661,7 +418,7 @@ export default function ResumeAnalyzer() {
           /* Results */
           <motion.div key="results" variants={containerVariants} initial="hidden" animate="show" className="space-y-6">
             <div className="flex items-center justify-between">
-              <Button variant="outline" onClick={() => { setResult(null); setParsed(null); setShowPreview(false); setImprovedResume(null); }}>
+              <Button variant="outline" onClick={() => { setResult(null); setParsed(null); setShowPreview(false); }}>
                 Analyze Another
               </Button>
               <Link href="/history"><Button variant="ghost" size="sm">View History <ChevronRight className="ml-1 h-4 w-4" /></Button></Link>
@@ -752,39 +509,6 @@ export default function ResumeAnalyzer() {
               </Card>
             </motion.div>
 
-            {/* ── Auto-Fix CTA ── */}
-            {!improvedResume && (
-              <motion.div variants={itemVariants}>
-                <Card className="border-2 border-primary/40 bg-gradient-to-br from-primary/5 to-lime-500/5 shadow-md">
-                  <CardContent className="pt-6 pb-6 space-y-4">
-                    <div className="flex items-start gap-4">
-                      <div className="p-3 rounded-xl bg-primary/15 shrink-0">
-                        <Wand2 className="h-6 w-6 text-primary" />
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-lg">Auto-Fix My Resume</h3>
-                        <p className="text-muted-foreground text-sm mt-1 leading-relaxed">
-                          Let AI automatically rewrite your entire resume — applying all the suggestions above, 
-                          adding missing keywords, strengthening your bullet points, and making it 
-                          ATS-optimized. Get a download-ready improved resume instantly.
-                        </p>
-                        <div className="flex flex-wrap gap-2 mt-3">
-                          {["All suggestions applied","Missing keywords added","Stronger action verbs","ATS-optimized format"].map((tag) => (
-                            <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                    <AutoFixButton parsed={parsed} result={result} jobTitle={jobTitle} onImproved={setImprovedResume} />
-                  </CardContent>
-                </Card>
-              </motion.div>
-            )}
-
-            {/* ── Improved resume output ── */}
-            {improvedResume && (
-              <ImprovedResumeCard text={improvedResume} originalFileName={parsed?.fileName ?? "resume"} />
-            )}
           </motion.div>
         )}
       </AnimatePresence>
