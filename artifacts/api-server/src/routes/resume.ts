@@ -216,4 +216,65 @@ router.get("/history/:id", async (req, res) => {
   }
 });
 
+// POST /resume/rewrite — free AI rewrite using analysis results
+router.post("/rewrite", async (req, res) => {
+  const { resumeText, atsScore, missingKeywords, suggestions, strengths, overallFeedback, jobTitle } =
+    req.body as {
+      resumeText?: string;
+      atsScore?: number;
+      missingKeywords?: string[];
+      suggestions?: string[];
+      strengths?: string[];
+      overallFeedback?: string;
+      jobTitle?: string;
+    };
+
+  if (!resumeText) {
+    res.status(400).json({ error: "Missing resumeText." });
+    return;
+  }
+
+  const prompt = `You are an expert resume writer and career coach. Rewrite and significantly improve the following resume.
+
+CURRENT RESUME:
+${resumeText}
+
+ANALYSIS FINDINGS:
+- ATS Score: ${atsScore ?? "N/A"}/100
+- Missing Keywords to Add: ${(missingKeywords ?? []).join(", ")}
+- Key Improvements Needed:
+${(suggestions ?? []).map((s, i) => `${i + 1}. ${s}`).join("\n")}
+- Existing Strengths to Preserve: ${(strengths ?? []).join(", ")}
+- Overall Feedback: ${overallFeedback ?? "N/A"}
+${jobTitle ? `- Target Role: ${jobTitle}` : ""}
+
+INSTRUCTIONS:
+1. Rewrite the entire resume addressing ALL missing keywords and suggestions.
+2. Preserve the person's actual experience, education, and achievements — do not invent new ones.
+3. Use strong action verbs, quantify achievements where possible, ATS-friendly format.
+4. Structure clearly: Summary, Experience, Skills, Education (and other relevant sections).
+5. Return ONLY the improved resume text — no commentary, no headers like "Improved Resume:".`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-5.2",
+      max_completion_tokens: 8192,
+      messages: [
+        { role: "system", content: "You are an expert resume writer. Rewrite resumes to be ATS-optimized and compelling." },
+        { role: "user", content: prompt },
+      ],
+    });
+
+    const improvedResume = completion.choices[0]?.message?.content?.trim() ?? "";
+    if (!improvedResume) {
+      res.status(500).json({ error: "AI did not return an improved resume." });
+      return;
+    }
+    res.json({ improvedResume });
+  } catch (err) {
+    req.log.error({ err }, "Resume rewrite error");
+    res.status(500).json({ error: "Failed to rewrite resume." });
+  }
+});
+
 export default router;

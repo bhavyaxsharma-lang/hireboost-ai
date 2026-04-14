@@ -127,6 +127,22 @@ export function Layout({ children }: { children: ReactNode }) {
       <main className="flex-1">
         {children}
       </main>
+
+      <footer className="border-t border-border/40 bg-background/80 py-4 px-6">
+        <div className="max-w-screen-2xl mx-auto flex items-center justify-center gap-3">
+          <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary/10 border border-primary/20 shrink-0">
+            <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" aria-hidden="true">
+              <path d="M12 2L2 7l10 5 10-5-10-5z" fill="currentColor" className="text-primary" opacity="0.9" />
+              <path d="M2 17l10 5 10-5" stroke="currentColor" className="text-primary" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.7" />
+              <path d="M2 12l10 5 10-5" stroke="currentColor" className="text-primary" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity="0.5" />
+            </svg>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Invented by{" "}
+            <span className="font-semibold text-foreground">Bhavya AI Solution</span>
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }

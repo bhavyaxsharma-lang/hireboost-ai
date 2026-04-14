@@ -1,27 +1,19 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "wouter";
-import {
-  useAnalyzeResume,
-  useGetResumeDailyUsage,
-  getGetResumeDailyUsageQueryKey,
-} from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useAnalyzeResume } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
   Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter,
 } from "@/components/ui/card";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
-} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FileText, Loader2, AlertCircle, CheckCircle2, ChevronRight,
-  Target, LayoutTemplate, Zap, Lock, Sparkles, TrendingUp,
-  Upload, X, FileType, Eye, EyeOff,
+  Target, LayoutTemplate, Sparkles,
+  Upload, X, FileType, Eye, EyeOff, Wand2, Copy, Download,
 } from "lucide-react";
 import { RoleCombobox } from "@/components/role-combobox";
 
@@ -116,59 +108,6 @@ function AiThinkingLoader({ label }: { label?: string }) {
         </div>
       </div>
     </div>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────
-   Upgrade Modal (subscription)
-───────────────────────────────────────────────────────── */
-function UpgradeModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="p-2 rounded-lg bg-primary/10"><Zap className="h-5 w-5 text-primary" /></div>
-            <DialogTitle className="text-xl">Upgrade to Pro</DialogTitle>
-          </div>
-          <DialogDescription>Unlock unlimited scans and premium features.</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="rounded-xl border-2 border-primary bg-primary/5 p-4 text-center">
-            <div className="text-3xl font-black text-primary">$9.99</div>
-            <div className="text-sm text-muted-foreground">per month — cancel anytime</div>
-          </div>
-          {["Unlimited resume scans/day","Priority AI processing","Advanced ATS keyword matching","Unlimited mock interviews"].map((f,i) => (
-            <div key={i} className="flex items-center gap-2 text-sm">
-              <CheckCircle2 className="h-4 w-4 text-primary shrink-0" /><span>{f}</span>
-            </div>
-          ))}
-          <Button className="w-full" size="lg"><Sparkles className="mr-2 h-4 w-4" /> Start Free 7-Day Trial</Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────
-   Usage Banner
-───────────────────────────────────────────────────────── */
-function UsageBanner({ used, limit, onUpgrade }: { used: number; limit: number; onUpgrade: () => void }) {
-  const remaining = limit - used;
-  const exhausted = remaining <= 0;
-  return (
-    <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-      className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm ${exhausted ? "border-destructive/40 bg-destructive/5" : remaining === 1 ? "border-amber-500/40 bg-amber-500/5" : "border-border bg-muted/30"}`}>
-      <div className="flex items-center gap-2">
-        {exhausted ? <Lock className="h-4 w-4 text-destructive shrink-0" /> : <TrendingUp className="h-4 w-4 text-muted-foreground shrink-0" />}
-        <span className={exhausted ? "text-destructive font-medium" : "text-muted-foreground"}>
-          {exhausted ? "Daily limit reached — upgrade for unlimited scans" : `${remaining} free scan${remaining !== 1 ? "s" : ""} remaining today (${used}/${limit} used)`}
-        </span>
-      </div>
-      <Button size="sm" variant={exhausted ? "default" : "outline"} onClick={onUpgrade} className="shrink-0">
-        <Zap className="mr-1.5 h-3.5 w-3.5" /> Upgrade
-      </Button>
-    </motion.div>
   );
 }
 
@@ -284,6 +223,139 @@ function ParsedFileCard({ parsed, onClear, showPreview, onTogglePreview }: {
 }
 
 /* ─────────────────────────────────────────────────────────
+   Improved Resume Card
+───────────────────────────────────────────────────────── */
+function ImprovedResumeCard({ text, originalFileName }: { text: string; originalFileName: string }) {
+  const { toast } = useToast();
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(text);
+    toast({ title: "Copied to clipboard!" });
+  };
+
+  const handleDownload = () => {
+    const blob = new Blob([text], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const base = originalFileName.replace(/\.[^.]+$/, "");
+    a.href = url;
+    a.download = `${base}_improved.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "Downloaded!" });
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: "spring", stiffness: 200, damping: 22 }}
+    >
+      <Card className="border-2 border-primary shadow-lg">
+        <CardHeader>
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-primary/10">
+                <Wand2 className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <CardTitle>Your Improved Resume</CardTitle>
+                <CardDescription>AI-optimized with all suggestions applied</CardDescription>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={handleCopy}>
+                <Copy className="mr-1.5 h-4 w-4" /> Copy
+              </Button>
+              <Button size="sm" onClick={handleDownload}>
+                <Download className="mr-1.5 h-4 w-4" /> Download
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Textarea
+            value={text}
+            readOnly
+            className="min-h-[520px] font-mono text-sm resize-y bg-muted/30 leading-relaxed"
+          />
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
+   Auto-Fix Button — free AI rewrite
+───────────────────────────────────────────────────────── */
+function AutoFixButton({
+  parsed,
+  result,
+  jobTitle,
+  onImproved,
+}: {
+  parsed: ParsedFile | null;
+  result: AnalysisResult;
+  jobTitle: string;
+  onImproved: (text: string) => void;
+}) {
+  const [isRewriting, setIsRewriting] = useState(false);
+  const { toast } = useToast();
+
+  const handleAutoFix = async () => {
+    if (!parsed) return;
+    setIsRewriting(true);
+    try {
+      const res = await fetch(`${getApiBase()}/resume/rewrite`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          resumeText: parsed.text,
+          atsScore: result.atsScore,
+          missingKeywords: result.missingKeywords,
+          suggestions: result.suggestions,
+          strengths: result.strengths,
+          overallFeedback: result.overallFeedback,
+          jobTitle: jobTitle || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error((d as { error?: string }).error ?? "Rewrite failed.");
+      }
+      const { improvedResume } = await res.json() as { improvedResume: string };
+      onImproved(improvedResume);
+      toast({ title: "Resume rewritten!", description: "Your optimized resume is ready to download." });
+    } catch (err) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Something went wrong.", variant: "destructive" });
+    } finally {
+      setIsRewriting(false);
+    }
+  };
+
+  if (isRewriting) {
+    return (
+      <div className="mt-4">
+        <AiThinkingLoader label="AI is rewriting your resume with all improvements…" />
+      </div>
+    );
+  }
+
+  return (
+    <Button
+      size="lg"
+      className="w-full bg-gradient-to-r from-primary to-lime-500 text-primary-foreground font-bold shadow-lg hover:opacity-90"
+      onClick={handleAutoFix}
+      disabled={!parsed}
+    >
+      <Wand2 className="mr-2 h-5 w-5" />
+      Auto-Fix My Resume — Free
+    </Button>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
    Main Page
 ───────────────────────────────────────────────────────── */
 export default function ResumeAnalyzer() {
@@ -292,35 +364,26 @@ export default function ResumeAnalyzer() {
   const [jobTitle, setJobTitle] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [result, setResult] = useState<AnalysisResult | null>(null);
-  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [improvedResume, setImprovedResume] = useState<string | null>(null);
 
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-
-  const { data: usageData } = useGetResumeDailyUsage();
   const analyzeMutation = useAnalyzeResume();
-
   const isAnalyzing = analyzeMutation.isPending;
-  const isLimitReached = usageData ? usageData.used >= usageData.limit : false;
 
   const handleAnalyze = () => {
     if (!parsed?.text.trim()) {
       toast({ title: "No file", description: "Please upload your resume first.", variant: "destructive" });
       return;
     }
-    if (isLimitReached) { setShowUpgrade(true); return; }
-
     analyzeMutation.mutate(
       { data: { resumeText: parsed.text, jobTitle: jobTitle || undefined, jobDescription: jobDescription || undefined } },
       {
         onSuccess: (data) => {
           setResult({ atsScore: data.atsScore, missingKeywords: data.missingKeywords, suggestions: data.suggestions, strengths: data.strengths, overallFeedback: data.overallFeedback });
-          queryClient.invalidateQueries({ queryKey: getGetResumeDailyUsageQueryKey() });
           toast({ title: "Analysis complete!" });
         },
-        onError: (err: { status?: number }) => {
-          if (err.status === 429) { setShowUpgrade(true); toast({ title: "Daily limit reached", variant: "destructive" }); }
-          else toast({ title: "Analysis failed", description: "Please try again.", variant: "destructive" });
+        onError: () => {
+          toast({ title: "Analysis failed", description: "Please try again.", variant: "destructive" });
         },
       }
     );
@@ -342,8 +405,6 @@ export default function ResumeAnalyzer() {
         <p className="text-muted-foreground mt-1">Upload your resume and get an instant ATS score with tailored AI feedback.</p>
       </div>
 
-      {usageData && <UsageBanner used={usageData.used} limit={usageData.limit} onUpgrade={() => setShowUpgrade(true)} />}
-
       <AnimatePresence mode="wait">
         {!result ? (
           <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -356,7 +417,7 @@ export default function ResumeAnalyzer() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {!parsed ? (
-                    <FileUploadZone onFileParsed={setParsed} disabled={isAnalyzing || isLimitReached} />
+                    <FileUploadZone onFileParsed={setParsed} disabled={isAnalyzing} />
                   ) : (
                     <ParsedFileCard parsed={parsed} onClear={() => { setParsed(null); setShowPreview(false); }} showPreview={showPreview} onTogglePreview={() => setShowPreview(v => !v)} />
                   )}
@@ -392,24 +453,11 @@ export default function ResumeAnalyzer() {
                       <Textarea id="jobDescription" placeholder="Paste the job description…" className="min-h-[120px] text-sm resize-y" value={jobDescription} onChange={(e) => setJobDescription(e.target.value)} disabled={isAnalyzing} />
                     </div>
                   </CardContent>
-                  <CardFooter className="flex-col gap-2">
-                    <Button className="w-full" size="lg" onClick={handleAnalyze} disabled={isAnalyzing || !parsed || isLimitReached}>
-                      {isAnalyzing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analyzing…</> : isLimitReached ? <><Lock className="mr-2 h-4 w-4" /> Limit Reached</> : <><LayoutTemplate className="mr-2 h-4 w-4" /> Analyze Resume</>}
+                  <CardFooter>
+                    <Button className="w-full" size="lg" onClick={handleAnalyze} disabled={isAnalyzing || !parsed}>
+                      {isAnalyzing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Analyzing…</> : <><LayoutTemplate className="mr-2 h-4 w-4" /> Analyze Resume</>}
                     </Button>
-                    {isLimitReached && <Button variant="outline" className="w-full" onClick={() => setShowUpgrade(true)}><Zap className="mr-2 h-4 w-4 text-primary" /> Upgrade to Pro</Button>}
                   </CardFooter>
-                </Card>
-
-                <Card className="border-primary/30 bg-primary/5 cursor-pointer hover:bg-primary/10 transition-colors" onClick={() => setShowUpgrade(true)}>
-                  <CardContent className="pt-4 pb-4">
-                    <div className="flex items-start gap-3">
-                      <div className="p-1.5 rounded-lg bg-primary/20"><Zap className="h-4 w-4 text-primary" /></div>
-                      <div>
-                        <p className="text-sm font-semibold">Upgrade to Pro</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">Unlimited scans, faster AI & more tools.</p>
-                      </div>
-                    </div>
-                  </CardContent>
                 </Card>
               </div>
             </div>
@@ -418,7 +466,7 @@ export default function ResumeAnalyzer() {
           /* Results */
           <motion.div key="results" variants={containerVariants} initial="hidden" animate="show" className="space-y-6">
             <div className="flex items-center justify-between">
-              <Button variant="outline" onClick={() => { setResult(null); setParsed(null); setShowPreview(false); }}>
+              <Button variant="outline" onClick={() => { setResult(null); setParsed(null); setShowPreview(false); setImprovedResume(null); }}>
                 Analyze Another
               </Button>
               <Link href="/history"><Button variant="ghost" size="sm">View History <ChevronRight className="ml-1 h-4 w-4" /></Button></Link>
@@ -509,11 +557,42 @@ export default function ResumeAnalyzer() {
               </Card>
             </motion.div>
 
+            {/* Auto-Fix CTA */}
+            {!improvedResume && (
+              <motion.div variants={itemVariants}>
+                <Card className="border-2 border-primary/40 bg-gradient-to-br from-primary/5 to-lime-500/5 shadow-md">
+                  <CardContent className="pt-6 pb-6 space-y-4">
+                    <div className="flex items-start gap-4">
+                      <div className="p-3 rounded-xl bg-primary/15 shrink-0">
+                        <Wand2 className="h-6 w-6 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-lg">Auto-Fix My Resume</h3>
+                        <p className="text-muted-foreground text-sm mt-1 leading-relaxed">
+                          Let AI automatically rewrite your entire resume — applying all the suggestions above,
+                          adding missing keywords, strengthening your bullet points, and making it ATS-optimized.
+                          Get a download-ready improved resume instantly.
+                        </p>
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          {["All suggestions applied", "Missing keywords added", "Stronger action verbs", "ATS-optimized format"].map((tag) => (
+                            <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <AutoFixButton parsed={parsed} result={result} jobTitle={jobTitle} onImproved={setImprovedResume} />
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+
+            {/* Improved resume output */}
+            {improvedResume && (
+              <ImprovedResumeCard text={improvedResume} originalFileName={parsed?.fileName ?? "resume"} />
+            )}
           </motion.div>
         )}
       </AnimatePresence>
-
-      <UpgradeModal open={showUpgrade} onClose={() => setShowUpgrade(false)} />
     </div>
   );
 }
