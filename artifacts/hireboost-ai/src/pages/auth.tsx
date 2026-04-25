@@ -4,10 +4,16 @@ import { useLoginUser, useRegisterUser } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
-import { Loader2 } from "lucide-react";
+import { Loader2, CheckCircle2, FileText, Video, Linkedin, TrendingUp } from "lucide-react";
+
+const perks = [
+  { icon: FileText, text: "Instant ATS Resume Scoring" },
+  { icon: Video, text: "AI Mock Interviews with Feedback" },
+  { icon: Linkedin, text: "LinkedIn Post Generator" },
+  { icon: TrendingUp, text: "Salary Negotiation Scripts" },
+];
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -20,12 +26,11 @@ export default function Auth() {
 
   const loginMutation = useLoginUser();
   const registerMutation = useRegisterUser();
-
   const isLoading = loginMutation.isPending || registerMutation.isPending;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (isLogin) {
       loginMutation.mutate(
         { data: { email, password } },
@@ -36,12 +41,8 @@ export default function Auth() {
             window.location.reload();
           },
           onError: (error) => {
-            toast({
-              title: "Login Failed",
-              description: error.error || "Please check your credentials.",
-              variant: "destructive"
-            });
-          }
+            toast({ title: "Login Failed", description: error.error || "Please check your credentials.", variant: "destructive" });
+          },
         }
       );
     } else {
@@ -49,100 +50,146 @@ export default function Auth() {
         { data: { name, email, password } },
         {
           onSuccess: () => {
-            toast({ title: "Account created!" });
+            toast({ title: "Account created! Welcome to HireBoost AI." });
             setLocation("/dashboard");
             window.location.reload();
           },
           onError: (error) => {
-            toast({
-              title: "Registration Failed",
-              description: error.error || "An error occurred.",
-              variant: "destructive"
-            });
-          }
+            toast({ title: "Registration Failed", description: error.error || "An error occurred.", variant: "destructive" });
+          },
         }
       );
     }
   };
 
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center p-4 bg-muted/30">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.3 }}
-        className="w-full max-w-md"
-      >
-        <Card className="border-border/50 shadow-xl">
-          <CardHeader className="space-y-1 text-center pb-8">
-            <CardTitle className="text-3xl font-bold">
-              {isLogin ? "Welcome back" : "Create an account"}
-            </CardTitle>
-            <CardDescription>
-              {isLogin 
-                ? "Enter your email to sign in to your account" 
-                : "Enter your details to create your account"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {!isLogin && (
-                <div className="space-y-2">
-                  <Label htmlFor="name">Name</Label>
-                  <Input 
-                    id="name" 
-                    placeholder="John Doe" 
-                    required 
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    disabled={isLoading}
-                  />
+    <div className="min-h-[calc(100vh-3.5rem)] flex">
+      {/* ── Left branding panel ── */}
+      <div className="hidden lg:flex flex-col flex-1 bg-gradient-to-br from-primary/90 to-lime-500 p-12 justify-between">
+        <div>
+          <div className="text-2xl font-extrabold text-white tracking-tight mb-2">
+            HireBoost <span className="opacity-80">AI</span>
+          </div>
+          <p className="text-white/70 text-sm">Your AI-powered career platform</p>
+        </div>
+
+        <div className="space-y-6">
+          <h2 className="text-3xl font-extrabold text-white leading-tight">
+            Everything you need to land your next job
+          </h2>
+          <div className="space-y-4">
+            {perks.map(({ icon: Icon, text }) => (
+              <div key={text} className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 border border-white/30 shrink-0">
+                  <Icon className="h-4 w-4 text-white" />
                 </div>
-              )}
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input 
-                  id="email" 
-                  type="email" 
-                  placeholder="m@example.com" 
-                  required 
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                <span className="text-white font-medium">{text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 text-white/60 text-sm">
+          <CheckCircle2 className="h-4 w-4" />
+          No credit card required · Free to start
+        </div>
+      </div>
+
+      {/* ── Right form panel ── */}
+      <div className="flex flex-1 items-center justify-center p-6 bg-background">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35 }}
+          className="w-full max-w-sm"
+        >
+          <div className="mb-8">
+            <h1 className="text-2xl font-extrabold tracking-tight">
+              {isLogin ? "Sign in to your account" : "Create your account"}
+            </h1>
+            <p className="text-muted-foreground text-sm mt-1">
+              {isLogin ? "Welcome back — enter your details below." : "Get started free — no card needed."}
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {!isLogin && (
+              <div className="space-y-1.5">
+                <Label htmlFor="name">Full Name</Label>
+                <Input
+                  id="name"
+                  placeholder="Rahul Sharma"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   disabled={isLoading}
+                  className="h-11"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input 
-                  id="password" 
-                  type="password" 
-                  required 
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={isLoading}
-                />
-              </div>
-              <Button type="submit" className="w-full mt-6" size="lg" disabled={isLoading}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isLogin ? "Sign In" : "Sign Up"}
-              </Button>
-            </form>
-          </CardContent>
-          <CardFooter className="flex flex-col space-y-4">
-            <div className="text-sm text-center text-muted-foreground">
-              {isLogin ? "Don't have an account? " : "Already have an account? "}
-              <Button 
-                variant="link" 
-                className="p-0 font-semibold text-primary" 
-                onClick={() => setIsLogin(!isLogin)}
+            )}
+
+            <div className="space-y-1.5">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="you@example.com"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 disabled={isLoading}
-              >
-                {isLogin ? "Sign up" : "Sign in"}
-              </Button>
+                className="h-11"
+              />
             </div>
-          </CardFooter>
-        </Card>
-      </motion.div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
+                className="h-11"
+                autoComplete={isLogin ? "current-password" : "new-password"}
+              />
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full h-11 font-bold shadow-lg shadow-primary/20 mt-2"
+              disabled={isLoading}
+            >
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isLogin ? "Sign In" : "Create Account"}
+            </Button>
+          </form>
+
+          <div className="mt-6 text-center text-sm text-muted-foreground">
+            {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
+            <Button
+              variant="link"
+              className="p-0 font-semibold text-primary h-auto"
+              onClick={() => setIsLogin(!isLogin)}
+              disabled={isLoading}
+            >
+              {isLogin ? "Sign up free" : "Sign in"}
+            </Button>
+          </div>
+
+          {/* Mobile perks */}
+          <div className="mt-8 pt-6 border-t border-border/50 lg:hidden space-y-3">
+            {perks.map(({ icon: Icon, text }) => (
+              <div key={text} className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Icon className="h-4 w-4 text-primary shrink-0" />
+                {text}
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      </div>
     </div>
   );
 }
