@@ -7,9 +7,97 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { motion } from "framer-motion";
-import { Loader2, PlayCircle, Trophy, BrainCircuit } from "lucide-react";
+import { Loader2, PlayCircle, BrainCircuit, Users, Laptop, Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { RoleCombobox, ALL_ROLES, ROLE_GROUPS } from "@/components/role-combobox";
+
+/* ─────────────────────────────────────────────────────────
+   Career-photo mosaic — 3 vibrant images of teams + laptops
+───────────────────────────────────────────────────────── */
+const CAREER_PHOTOS = [
+  {
+    src: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=1000&auto=format&fit=crop",
+    alt: "Group of professionals collaborating around a laptop",
+    label: "Collaborate & Learn",
+    icon: Users,
+    span: "full",
+  },
+  {
+    src: "https://images.pexels.com/photos/5945814/pexels-photo-5945814.jpeg?auto=compress&cs=tinysrgb&w=700",
+    alt: "Colleagues discussing career plans with laptops",
+    label: "Real Feedback",
+    icon: Star,
+    span: "half",
+  },
+  {
+    src: "https://images.pexels.com/photos/7651743/pexels-photo-7651743.jpeg?auto=compress&cs=tinysrgb&w=700",
+    alt: "Career group talking together with laptops",
+    label: "Land Your Role",
+    icon: Laptop,
+    span: "half",
+  },
+] as const;
+
+function CareerPhotoMosaic() {
+  const [main, ...rest] = CAREER_PHOTOS;
+  return (
+    <div className="space-y-2">
+      {/* Main large photo */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.97 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5 }}
+        className="relative rounded-2xl overflow-hidden group shadow-md"
+      >
+        <img
+          src={main.src}
+          alt={main.alt}
+          className="w-full h-52 object-cover transition-transform duration-700 group-hover:scale-105"
+          loading="lazy"
+        />
+        {/* Gradient overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+        {/* Badge */}
+        <div className="absolute bottom-3 left-3 flex items-center gap-1.5 bg-white/15 backdrop-blur-md border border-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow">
+          <main.icon className="h-3.5 w-3.5" />
+          {main.label}
+        </div>
+        {/* Top-right glow dot */}
+        <div className="absolute top-3 right-3 h-2.5 w-2.5 rounded-full bg-primary shadow-[0_0_8px_3px] shadow-primary/60" />
+      </motion.div>
+
+      {/* Two smaller photos side-by-side */}
+      <div className="grid grid-cols-2 gap-2">
+        {rest.map((photo, i) => (
+          <motion.div
+            key={photo.alt}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.12 + i * 0.1 }}
+            className="relative rounded-xl overflow-hidden group shadow-sm"
+          >
+            <img
+              src={photo.src}
+              alt={photo.alt}
+              className="w-full h-32 object-cover transition-transform duration-700 group-hover:scale-105"
+              loading="lazy"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
+            <div className="absolute bottom-2 left-2 flex items-center gap-1 bg-white/15 backdrop-blur-md border border-white/20 text-white text-[10px] font-semibold px-2 py-1 rounded-full">
+              <photo.icon className="h-3 w-3" />
+              {photo.label}
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Attribution note */}
+      <p className="text-[10px] text-muted-foreground text-right pr-1">
+        Photos: Unsplash &amp; Pexels
+      </p>
+    </div>
+  );
+}
 
 /* ─────────────────────────────────────────────────────────
    Page
@@ -45,6 +133,7 @@ export default function InterviewHub() {
       </div>
 
       <div className="grid md:grid-cols-2 gap-8">
+        {/* ── LEFT: Session setup ── */}
         <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
           <Card className="border-border/50 shadow-md">
             <CardHeader>
@@ -117,6 +206,7 @@ export default function InterviewHub() {
           </Card>
         </motion.div>
 
+        {/* ── RIGHT: How it works + career photos ── */}
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }} className="space-y-6">
           <Card className="bg-secondary/30 border-none shadow-none">
             <CardHeader><CardTitle className="text-xl">How it works</CardTitle></CardHeader>
@@ -137,17 +227,8 @@ export default function InterviewHub() {
             </CardContent>
           </Card>
 
-          <div className="rounded-xl overflow-hidden relative group">
-            <div className="absolute inset-0 bg-primary/20 mix-blend-overlay z-10" />
-            <img
-              src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=800&auto=format&fit=crop"
-              alt="Professional interview setting"
-              className="w-full h-48 object-cover grayscale transition-transform duration-700 group-hover:scale-105"
-            />
-            <div className="absolute inset-0 flex items-center justify-center z-20">
-              <Trophy className="h-16 w-16 text-white drop-shadow-md opacity-80" />
-            </div>
-          </div>
+          {/* Career photo mosaic */}
+          <CareerPhotoMosaic />
         </motion.div>
       </div>
     </div>
