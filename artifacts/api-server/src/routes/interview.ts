@@ -77,6 +77,12 @@ router.get("/sessions", async (req, res) => {
 
 // POST /interview/sessions - create session + generate questions
 router.post("/sessions", async (req, res) => {
+  const userId = req.session?.userId ?? null;
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
   const parseResult = CreateInterviewSessionBody.safeParse(req.body);
   if (!parseResult.success) {
     res.status(400).json({ error: "Invalid request body" });
@@ -84,7 +90,6 @@ router.post("/sessions", async (req, res) => {
   }
 
   const { jobRole, difficulty = "medium", questionCount = 7 } = parseResult.data;
-  const userId = req.session?.userId ?? null;
 
   try {
     // Generate questions with AI

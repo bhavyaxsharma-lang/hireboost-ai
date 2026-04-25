@@ -159,7 +159,7 @@ export const ListInterviewSessionsResponse = zod.array(
 export const CreateInterviewSessionBody = zod.object({
   jobRole: zod.string(),
   difficulty: zod.enum(["easy", "medium", "hard"]).optional(),
-  questionCount: zod.number().optional(),
+  questionCount: zod.number().int().min(1).max(20).optional(),
 });
 
 /**

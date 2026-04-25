@@ -75,15 +75,20 @@ router.post("/upload", async (req, res) => {
   });
 });
 
-// POST /resume/analyze — AI analysis (unlimited, no rate limiting)
+// POST /resume/analyze — AI analysis (requires authentication)
 router.post("/analyze", async (req, res) => {
+  const userId = req.session?.userId ?? null;
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
   const parseResult = AnalyzeResumeBody.safeParse(req.body);
   if (!parseResult.success) {
     res.status(400).json({ error: "Invalid request body" });
     return;
   }
 
-  const userId = req.session?.userId ?? null;
   const { resumeText, jobTitle, jobDescription } = parseResult.data;
 
   const systemPrompt = `You are an expert ATS (Applicant Tracking System) analyzer and career coach. 
@@ -242,6 +247,11 @@ router.get("/history/:id", async (req, res) => {
 // POST /resume/rewrite — AI rewrite (2 free lifetime, then ₹100 per rewrite)
 router.post("/rewrite", async (req, res) => {
   const userId = req.session?.userId ?? null;
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
   const { resumeText, atsScore, missingKeywords, suggestions, strengths, overallFeedback, jobTitle } =
     req.body as {
       resumeText?: string;
@@ -258,24 +268,22 @@ router.post("/rewrite", async (req, res) => {
     return;
   }
 
-  // Credit check (only for authenticated users)
+  // Credit check
   let paymentUsed: typeof payments.$inferSelect | null = null;
-  if (userId) {
-    const freeUsed = await getFreeRewriteCount(userId);
-    if (freeUsed >= FREE_REWRITE_LIMIT) {
-      // Check for a paid credit
-      const unusedPayment = await getUnusedPayment(userId);
-      if (!unusedPayment) {
-        res.status(402).json({
-          error: "payment_required",
-          message: "You have used your 2 free resume rewrites. Please pay ₹100 to continue.",
-          freeUsed,
-          freeLimit: FREE_REWRITE_LIMIT,
-        });
-        return;
-      }
-      paymentUsed = unusedPayment;
+  const freeUsed = await getFreeRewriteCount(userId);
+  if (freeUsed >= FREE_REWRITE_LIMIT) {
+    // Check for a paid credit
+    const unusedPayment = await getUnusedPayment(userId);
+    if (!unusedPayment) {
+      res.status(402).json({
+        error: "payment_required",
+        message: "You have used your 2 free resume rewrites. Please pay ₹100 to continue.",
+        freeUsed,
+        freeLimit: FREE_REWRITE_LIMIT,
+      });
+      return;
     }
+    paymentUsed = unusedPayment;
   }
 
   const prompt = `You are an expert resume writer and career coach. Rewrite and significantly improve the following resume.
@@ -316,15 +324,13 @@ INSTRUCTIONS:
     }
 
     // Log rewrite usage
-    if (userId) {
-      await db.insert(rewriteLogs).values({
-        userId,
-        paymentId: paymentUsed?.id ?? null,
-      });
-      // Consume the paid credit if one was used
-      if (paymentUsed) {
-        await db.update(payments).set({ used: 1 }).where(eq(payments.id, paymentUsed.id));
-      }
+    await db.insert(rewriteLogs).values({
+      userId,
+      paymentId: paymentUsed?.id ?? null,
+    });
+    // Consume the paid credit if one was used
+    if (paymentUsed) {
+      await db.update(payments).set({ used: 1 }).where(eq(payments.id, paymentUsed.id));
     }
 
     res.json({ improvedResume });

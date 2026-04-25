@@ -3,6 +3,7 @@ import cors from "cors";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import pinoHttp from "pino-http";
+import rateLimit from "express-rate-limit";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
@@ -40,8 +41,32 @@ app.use(
   }),
 );
 
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "256kb" }));
+app.use(express.urlencoded({ extended: true, limit: "256kb" }));
+
+// General rate limit: 100 requests per minute per IP
+const generalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again later." },
+});
+
+// Strict rate limit for expensive AI endpoints: 10 requests per minute per IP
+const aiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many AI requests, please slow down." },
+});
+
+app.use("/api", generalLimiter);
+app.use("/api/resume/analyze", aiLimiter);
+app.use("/api/resume/rewrite", aiLimiter);
+app.post("/api/interview/sessions", aiLimiter);
+app.post(/^\/api\/interview\/sessions\/\d+\/answer$/, aiLimiter);
 
 // Session middleware — PostgreSQL-backed store so sessions survive restarts
 const sessionSecret = process.env.SESSION_SECRET;
