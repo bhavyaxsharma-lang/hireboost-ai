@@ -11,3 +11,9 @@ id = "_pJXUAAYl_WnqaVq8smdH"
 uri = "file://myapp.zip"
 type = "unspecified"
 title = "myapp.zip — HireBoost AI (all 5 modules)"
+
+[[outputs]]
+id = "8naEb_zyirbBMIJuCCC8I"
+uri = "file://hireboost-ai.zip"
+type = "unspecified"
+title = "HireBoost AI — Source Code"
