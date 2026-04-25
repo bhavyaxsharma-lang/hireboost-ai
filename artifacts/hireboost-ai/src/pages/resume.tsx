@@ -522,15 +522,16 @@ function AutoFixButton({
         }),
       });
       if (!res.ok) {
-        const d = await res.json().catch(() => ({})) as { error?: string };
-        throw new Error(d.error ?? "Rewrite failed.");
+        const d = await res.json().catch(() => ({})) as { error?: string; message?: string };
+        // Use the human-readable message field if available (e.g. 402 payment_required)
+        throw new Error(d.message ?? d.error ?? "Rewrite failed.");
       }
       const { improvedResume } = await res.json() as { improvedResume: string };
       onImproved(improvedResume);
       void fetchStatus();
       toast({ title: "Resume rewritten!", description: "Your optimized resume is ready to download." });
     } catch (err) {
-      toast({ title: "Error", description: err instanceof Error ? err.message : "Something went wrong.", variant: "destructive" });
+      toast({ title: "Rewrite failed", description: err instanceof Error ? err.message : "Something went wrong.", variant: "destructive" });
     } finally {
       setIsRewriting(false);
     }
@@ -593,9 +594,23 @@ function AutoFixButton({
   };
 
   const handleClick = async () => {
-    const needsPayment = rewriteStatus
-      ? rewriteStatus.freeUsed >= rewriteStatus.freeLimit && !rewriteStatus.hasPaidCredit
+    // Always fetch a fresh status right before acting to avoid a race condition
+    // where rewriteStatus is still null (useEffect hasn't resolved yet) and we
+    // mistakenly call doRewrite() when the user actually needs to pay.
+    let currentStatus = rewriteStatus;
+    try {
+      const statusRes = await fetch(`${getApiBase()}/resume/rewrite-status`, { credentials: "include" });
+      if (statusRes.ok) {
+        const fresh = await statusRes.json() as RewriteStatus;
+        setRewriteStatus(fresh);
+        currentStatus = fresh;
+      }
+    } catch { /* fall back to cached state */ }
+
+    const needsPayment = currentStatus
+      ? currentStatus.freeUsed >= currentStatus.freeLimit && !currentStatus.hasPaidCredit
       : false;
+
     if (needsPayment) {
       await handlePayAndFix();
     } else {
