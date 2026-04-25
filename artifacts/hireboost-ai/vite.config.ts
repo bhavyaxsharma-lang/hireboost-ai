@@ -49,6 +49,16 @@ export default defineConfig({
     port,
     host: "0.0.0.0",
     allowedHosts: true,
+    // In development, forward /api requests to the Express API server so the
+    // Vite dev server and the API server can run on separate ports without
+    // triggering CORS errors in the browser.
+    proxy: {
+      "/api": {
+        target: "http://localhost:8080",
+        changeOrigin: true,
+        secure: false,
+      },
+    },
     fs: {
       strict: true,
       deny: ["**/.*"],
