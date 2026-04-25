@@ -24,9 +24,12 @@ Full-stack AI-powered web app for resume analysis and mock interview coaching. M
 1. **User Authentication** — Register/login with email & password (session-based)
 2. **Resume Analyzer** — Paste resume text, get ATS score (0-100), missing keywords, strengths, improvement suggestions
 3. **AI Mock Interview** — Select job role and difficulty, get AI-generated questions, submit answers for feedback and star ratings
-4. **Dashboard** — Overview of scores, stats, and recent activity
-5. **History** — Past resume analyses and interview sessions
-6. **Dark/Light mode** — System-aware theme toggle
+4. **LinkedIn Content Generator** — Generate viral LinkedIn posts from a topic + tone (professional/storytelling/motivational), with hook, full post, hashtags, and a "Make it More Viral" button
+5. **Salary Negotiation Tool** — Input current/offered/target salary + role + experience, get AI-generated verbal counter script, HR email, market insight, and negotiation tips
+6. **Dashboard** — Overview of scores, stats, and recent activity
+7. **History** — Past resume analyses and interview sessions
+8. **Razorpay Payments** — 2 free resume rewrites lifetime, then ₹100/rewrite via Razorpay
+9. **Dark/Light mode** — System-aware theme toggle
 
 ## DB Tables
 

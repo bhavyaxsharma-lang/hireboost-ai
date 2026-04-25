@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { useAuth } from "./auth-provider";
 import { useLogoutUser } from "@workspace/api-client-react";
 import { Button } from "./ui/button";
-import { LayoutDashboard, FileText, Video, History, LogOut, Menu, UserCircle } from "lucide-react";
+import { LayoutDashboard, FileText, Video, History, LogOut, Menu, UserCircle, Linkedin, TrendingUp } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
 import { useTheme } from "./theme-provider";
 import { Moon, Sun } from "lucide-react";
@@ -27,6 +27,8 @@ export function Layout({ children }: { children: ReactNode }) {
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/resume", label: "Analyzer", icon: FileText },
     { href: "/interview", label: "Interview", icon: Video },
+    { href: "/linkedin", label: "LinkedIn", icon: Linkedin },
+    { href: "/salary", label: "Salary", icon: TrendingUp },
     { href: "/history", label: "History", icon: History },
   ];
 
@@ -54,7 +56,7 @@ export function Layout({ children }: { children: ReactNode }) {
               {isAuthenticated ? (
                 <>
                   <div className="hidden md:flex items-center space-x-4">
-                    <nav className="flex items-center space-x-6 text-sm font-medium">
+                    <nav className="flex items-center space-x-5 text-sm font-medium">
                       {navItems.map((item) => (
                         <Link
                           key={item.href}

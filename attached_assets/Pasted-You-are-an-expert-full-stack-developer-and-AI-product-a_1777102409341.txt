@@ -1,0 +1,99 @@
+You are an expert full-stack developer and AI product architect.
+
+I already have an app called "HireBoost AI" (job seeker platform with resume ATS scoring and mock interviews).
+
+Now I want to EXPAND it into a single ecosystem app with 3 new core modules:
+
+-----------------------------------
+1. INTERVIEW BOT MODULE
+-----------------------------------
+Features:
+- AI mock interview (text + voice ready structure)
+- Role-based interviews (RPA Developer, Business Analyst, AI Engineer, Freshers)
+- Ask 5–10 questions per session
+- Evaluate answers with score (clarity, confidence, relevance)
+- Provide improvement suggestions
+- Save user history
+
+UI:
+- Start Interview button
+- Select Role dropdown
+- Chat-style interface
+- Feedback screen with score
+
+-----------------------------------
+2. LINKEDIN CONTENT GENERATOR MODULE
+-----------------------------------
+Features:
+- Generate viral LinkedIn posts
+- Input: topic + tone (professional, storytelling, motivational)
+- Output:
+  - Hook
+  - Full post
+  - Hashtags
+- Option: “Make it more viral” button
+- Copy + share functionality
+
+UI:
+- Input box
+- Tone selector
+- Generate button
+- Output card
+
+-----------------------------------
+3. SALARY NEGOTIATION TOOL
+-----------------------------------
+Features:
+- Input: current salary, offered salary, role, experience
+- AI generates:
+  - Counter offer script
+  - HR negotiation message
+  - Market salary insight (basic logic-based if no API)
+
+UI:
+- Simple form
+- Generate response button
+- Output scripts
+
+-----------------------------------
+TECH REQUIREMENTS
+-----------------------------------
+- Frontend: React (simple, clean UI)
+- Backend: Node.js / Express
+- AI: OpenAI API (or placeholder function if key not added)
+- Database: Firebase or simple JSON storage (for MVP)
+- Modular structure (each feature separate component)
+
+-----------------------------------
+NAVIGATION
+-----------------------------------
+Add tabs or dashboard:
+- Resume Tool (existing)
+- Interview Bot
+- LinkedIn Tool
+- Salary Tool
+
+-----------------------------------
+MONETIZATION (STRUCTURE ONLY)
+-----------------------------------
+- Free: limited usage (e.g., 3/day)
+- Premium unlock flag in code
+
+-----------------------------------
+EXTRA
+-----------------------------------
+- Make UI modern (cards, buttons, clean spacing)
+- Add loading animation when AI is generating
+- Add error handling
+- Keep code beginner-friendly and well commented
+
+-----------------------------------
+OUTPUT REQUIRED
+-----------------------------------
+- Full working code (frontend + backend)
+- Folder structure
+- Setup steps (how to run in Replit)
+- Where to add API key
+- Sample dummy responses if API not available
+
+Build this as MVP but scalable.
