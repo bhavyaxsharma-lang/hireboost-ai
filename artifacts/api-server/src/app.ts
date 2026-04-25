@@ -4,6 +4,8 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import pinoHttp from "pino-http";
 import rateLimit from "express-rate-limit";
+import path from "path";
+import fs from "fs";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
@@ -35,47 +37,50 @@ app.use(
 
 const isProduction = process.env.NODE_ENV === "production";
 
-// CORS — only allow requests from the known frontend origin.
-// ALLOWED_ORIGIN must be set in production (e.g. "https://yourdomain.replit.app").
-// In development the Replit dev-domain is derived automatically as a fallback.
-if (isProduction && !process.env.ALLOWED_ORIGIN) {
-  throw new Error("ALLOWED_ORIGIN must be set in production");
-}
-
-const allowedOrigin = (() => {
-  if (process.env.ALLOWED_ORIGIN) {
-    return process.env.ALLOWED_ORIGIN;
-  }
-  if (process.env.REPLIT_DEV_DOMAIN) {
-    return `https://${process.env.REPLIT_DEV_DOMAIN}`;
-  }
-  return "http://localhost:5173";
+// In production, the frontend is built and served by this same Express server
+// (same-origin), so CORS is not needed from the browser's perspective.
+// In development the Replit dev-domain is used so the proxied frontend can call the API.
+const allowedOrigin: string | null = (() => {
+  if (process.env.ALLOWED_ORIGIN) return process.env.ALLOWED_ORIGIN;
+  if (process.env.REPLIT_DEV_DOMAIN) return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  if (!isProduction) return "http://localhost:5173";
+  // Production + same-origin: no CORS header needed
+  return null;
 })();
 
-app.use(
-  cors({
-    origin: allowedOrigin,
-    credentials: true,
-  }),
-);
+if (allowedOrigin) {
+  app.use(cors({ origin: allowedOrigin, credentials: true }));
+}
 
 // Defense-in-depth: for state-changing methods, reject any request whose
 // Origin header is present but does not match the allowed frontend origin.
-// Requests with no Origin header (server-to-server, CLI, webhooks) are
-// allowed through because they cannot carry a cross-site session cookie.
+// Skipped when same-origin (production without ALLOWED_ORIGIN) since the
+// browser never sends a cross-origin Origin header in that case.
 const STATE_CHANGING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
-app.use((req: Request, res: Response, next: NextFunction) => {
-  if (!STATE_CHANGING_METHODS.has(req.method)) {
+if (allowedOrigin) {
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (!STATE_CHANGING_METHODS.has(req.method)) { next(); return; }
+    const origin = req.headers.origin;
+    if (origin !== undefined && origin !== allowedOrigin) {
+      res.status(403).json({ error: "Forbidden: invalid request origin" });
+      return;
+    }
     next();
-    return;
+  });
+}
+
+// In production: serve the built React frontend as static files.
+// The frontend is built to artifacts/hireboost-ai/dist/public relative to
+// the repo root (where the run command is executed from).
+if (isProduction) {
+  const frontendDist = path.resolve(process.cwd(), "artifacts/hireboost-ai/dist/public");
+  if (fs.existsSync(frontendDist)) {
+    app.use(express.static(frontendDist));
+    logger.info({ frontendDist }, "Serving frontend static files");
+  } else {
+    logger.warn({ frontendDist }, "Frontend dist directory not found — skipping static serving");
   }
-  const origin = req.headers.origin;
-  if (origin !== undefined && origin !== allowedOrigin) {
-    res.status(403).json({ error: "Forbidden: invalid request origin" });
-    return;
-  }
-  next();
-});
+}
 
 app.use(express.json({ limit: "256kb" }));
 app.use(express.urlencoded({ extended: true, limit: "256kb" }));
@@ -145,5 +150,19 @@ app.use(
 );
 
 app.use("/api", router);
+
+// In production: SPA fallback — serve index.html for all non-API routes so
+// client-side routing (wouter) works correctly after a hard refresh.
+if (isProduction) {
+  const frontendDist = path.resolve(process.cwd(), "artifacts/hireboost-ai/dist/public");
+  app.use((_req: Request, res: Response) => {
+    const indexPath = path.join(frontendDist, "index.html");
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(404).send("Not found");
+    }
+  });
+}
 
 export default app;
