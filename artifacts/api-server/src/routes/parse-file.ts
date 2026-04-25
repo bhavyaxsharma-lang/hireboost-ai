@@ -3,10 +3,19 @@ import { Router } from "express";
 import multer from "multer";
 import { createRequire } from "node:module";
 
-const require = createRequire(import.meta.url);
-// pdf-parse and mammoth are CJS-only — use require to avoid ESM interop issues
-const pdfParse = require("pdf-parse") as (buffer: Buffer) => Promise<{ text: string; numpages: number }>;
-const mammoth = require("mammoth") as {
+// pdf-parse (v1.x) and mammoth are CJS-only — use createRequire so the
+// externalized modules resolve correctly at runtime from the bundle location.
+const _require = createRequire(import.meta.url);
+
+// pdf-parse v1.x: module.exports is the parse function directly.
+// Guard with .default fallback for any bundler-wrapping edge case.
+const _pdfMod = _require("pdf-parse");
+const pdfParse = (typeof _pdfMod === "function" ? _pdfMod : _pdfMod.default) as (
+  buffer: Buffer
+) => Promise<{ text: string; numpages: number }>;
+
+// mammoth: module.exports is the mammoth object with extractRawText, etc.
+const mammoth = _require("mammoth") as {
   extractRawText: (opts: { buffer: Buffer }) => Promise<{ value: string; messages: unknown[] }>;
 };
 
