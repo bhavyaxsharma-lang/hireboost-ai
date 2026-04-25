@@ -37,15 +37,18 @@ app.use(
 
 const isProduction = process.env.NODE_ENV === "production";
 
-// In production, the frontend is built and served by this same Express server
-// (same-origin), so CORS is not needed from the browser's perspective.
-// In development the Replit dev-domain is used so the proxied frontend can call the API.
+// In production, the frontend is served by this same Express process (same-origin),
+// so no CORS headers or origin validation are needed — browsers allow same-origin
+// requests unconditionally. REPLIT_DEV_DOMAIN is present in both dev and prod
+// environments, so we must check NODE_ENV first before using it.
 const allowedOrigin: string | null = (() => {
+  // Explicit override always wins (e.g. custom domain cross-origin setups).
   if (process.env.ALLOWED_ORIGIN) return process.env.ALLOWED_ORIGIN;
+  // Production: frontend and API share the same origin — skip CORS entirely.
+  if (isProduction) return null;
+  // Development: use the Replit dev domain so the Vite dev server can call the API.
   if (process.env.REPLIT_DEV_DOMAIN) return `https://${process.env.REPLIT_DEV_DOMAIN}`;
-  if (!isProduction) return "http://localhost:5173";
-  // Production + same-origin: no CORS header needed
-  return null;
+  return "http://localhost:5173";
 })();
 
 if (allowedOrigin) {
