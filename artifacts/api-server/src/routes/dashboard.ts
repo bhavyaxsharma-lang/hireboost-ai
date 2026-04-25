@@ -8,13 +8,17 @@ const router = Router();
 // GET /dashboard/stats
 router.get("/stats", async (req, res) => {
   const userId = req.session?.userId ?? null;
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
 
   try {
     // Latest resume score
     const latestResumeResult = await db
       .select({ atsScore: resumeAnalyses.atsScore })
       .from(resumeAnalyses)
-      .where(userId ? eq(resumeAnalyses.userId, userId) : undefined)
+      .where(eq(resumeAnalyses.userId, userId))
       .orderBy(desc(resumeAnalyses.createdAt))
       .limit(1);
 
@@ -22,39 +26,31 @@ router.get("/stats", async (req, res) => {
     const totalResumesResult = await db
       .select({ count: count() })
       .from(resumeAnalyses)
-      .where(userId ? eq(resumeAnalyses.userId, userId) : undefined);
+      .where(eq(resumeAnalyses.userId, userId));
 
     // Total interview sessions
     const totalInterviewsResult = await db
       .select({ count: count() })
       .from(interviewSessions)
-      .where(userId ? eq(interviewSessions.userId, userId) : undefined);
+      .where(eq(interviewSessions.userId, userId));
 
     // Average interview rating (completed sessions only)
     const avgRatingResult = await db
       .select({ avg: avg(interviewSessions.averageRating) })
       .from(interviewSessions)
-      .where(
-        userId
-          ? sql`${interviewSessions.userId} = ${userId} AND ${interviewSessions.status} = 'completed'`
-          : sql`${interviewSessions.status} = 'completed'`,
-      );
+      .where(sql`${interviewSessions.userId} = ${userId} AND ${interviewSessions.status} = 'completed'`);
 
     // Completed sessions count
     const completedResult = await db
       .select({ count: count() })
       .from(interviewSessions)
-      .where(
-        userId
-          ? sql`${interviewSessions.userId} = ${userId} AND ${interviewSessions.status} = 'completed'`
-          : sql`${interviewSessions.status} = 'completed'`,
-      );
+      .where(sql`${interviewSessions.userId} = ${userId} AND ${interviewSessions.status} = 'completed'`);
 
     // Top job roles
     const topRolesResult = await db
       .select({ jobRole: interviewSessions.jobRole })
       .from(interviewSessions)
-      .where(userId ? eq(interviewSessions.userId, userId) : undefined)
+      .where(eq(interviewSessions.userId, userId))
       .orderBy(desc(interviewSessions.createdAt))
       .limit(5);
 
@@ -77,6 +73,10 @@ router.get("/stats", async (req, res) => {
 // GET /dashboard/recent-activity
 router.get("/recent-activity", async (req, res) => {
   const userId = req.session?.userId ?? null;
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
 
   try {
     // Get recent resume analyses
@@ -88,7 +88,7 @@ router.get("/recent-activity", async (req, res) => {
         createdAt: resumeAnalyses.createdAt,
       })
       .from(resumeAnalyses)
-      .where(userId ? eq(resumeAnalyses.userId, userId) : undefined)
+      .where(eq(resumeAnalyses.userId, userId))
       .orderBy(desc(resumeAnalyses.createdAt))
       .limit(5);
 
@@ -102,7 +102,7 @@ router.get("/recent-activity", async (req, res) => {
         createdAt: interviewSessions.createdAt,
       })
       .from(interviewSessions)
-      .where(userId ? eq(interviewSessions.userId, userId) : undefined)
+      .where(eq(interviewSessions.userId, userId))
       .orderBy(desc(interviewSessions.createdAt))
       .limit(5);
 

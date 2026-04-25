@@ -170,6 +170,10 @@ Return a JSON object with exactly these fields:
 // GET /resume/history — list past analyses
 router.get("/history", async (req, res) => {
   const userId = req.session?.userId ?? null;
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
 
   try {
     const analyses = await db
@@ -180,7 +184,7 @@ router.get("/history", async (req, res) => {
         createdAt: resumeAnalyses.createdAt,
       })
       .from(resumeAnalyses)
-      .where(userId ? eq(resumeAnalyses.userId, userId) : undefined)
+      .where(eq(resumeAnalyses.userId, userId))
       .orderBy(desc(resumeAnalyses.createdAt))
       .limit(20);
 
@@ -193,6 +197,12 @@ router.get("/history", async (req, res) => {
 
 // GET /resume/history/:id — get specific analysis
 router.get("/history/:id", async (req, res) => {
+  const userId = req.session?.userId ?? null;
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
   const parseResult = GetResumeAnalysisParams.safeParse({ id: Number(req.params.id) });
   if (!parseResult.success) {
     res.status(400).json({ error: "Invalid ID" });
@@ -203,6 +213,11 @@ router.get("/history/:id", async (req, res) => {
     const [analysis] = await db.select().from(resumeAnalyses).where(eq(resumeAnalyses.id, parseResult.data.id)).limit(1);
     if (!analysis) {
       res.status(404).json({ error: "Analysis not found" });
+      return;
+    }
+
+    if (analysis.userId !== userId) {
+      res.status(403).json({ error: "Forbidden" });
       return;
     }
 

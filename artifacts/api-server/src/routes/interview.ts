@@ -42,12 +42,16 @@ function formatSession(session: typeof interviewSessions.$inferSelect, questions
 // GET /interview/sessions
 router.get("/sessions", async (req, res) => {
   const userId = req.session?.userId ?? null;
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
 
   try {
     const sessions = await db
       .select()
       .from(interviewSessions)
-      .where(userId ? eq(interviewSessions.userId, userId) : undefined)
+      .where(eq(interviewSessions.userId, userId))
       .orderBy(desc(interviewSessions.createdAt))
       .limit(20);
 
@@ -144,6 +148,12 @@ Mix behavioral, technical, and situational questions appropriate for the role.`;
 
 // GET /interview/sessions/:id
 router.get("/sessions/:id", async (req, res) => {
+  const userId = req.session?.userId ?? null;
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
   const parseResult = GetInterviewSessionParams.safeParse({ id: Number(req.params.id) });
   if (!parseResult.success) {
     res.status(400).json({ error: "Invalid ID" });
@@ -154,6 +164,11 @@ router.get("/sessions/:id", async (req, res) => {
     const [session] = await db.select().from(interviewSessions).where(eq(interviewSessions.id, parseResult.data.id)).limit(1);
     if (!session) {
       res.status(404).json({ error: "Session not found" });
+      return;
+    }
+
+    if (session.userId !== userId) {
+      res.status(403).json({ error: "Forbidden" });
       return;
     }
 
@@ -172,6 +187,12 @@ router.get("/sessions/:id", async (req, res) => {
 
 // POST /interview/sessions/:id/answer - submit answer and get AI feedback
 router.post("/sessions/:id/answer", async (req, res) => {
+  const userId = req.session?.userId ?? null;
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
   const paramsResult = SubmitAnswerParams.safeParse({ id: Number(req.params.id) });
   if (!paramsResult.success) {
     res.status(400).json({ error: "Invalid session ID" });
@@ -188,6 +209,17 @@ router.post("/sessions/:id/answer", async (req, res) => {
   const sessionId = paramsResult.data.id;
 
   try {
+    // Verify session ownership before allowing writes
+    const [sessionOwner] = await db.select({ userId: interviewSessions.userId }).from(interviewSessions).where(eq(interviewSessions.id, sessionId)).limit(1);
+    if (!sessionOwner) {
+      res.status(404).json({ error: "Session not found" });
+      return;
+    }
+    if (sessionOwner.userId !== userId) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
     // Get the question
     const [question] = await db.select().from(interviewQuestions).where(eq(interviewQuestions.id, questionId)).limit(1);
     if (!question || question.sessionId !== sessionId) {
@@ -267,6 +299,12 @@ Return ONLY valid JSON with exactly these fields:
 
 // POST /interview/sessions/:id/complete - complete session
 router.post("/sessions/:id/complete", async (req, res) => {
+  const userId = req.session?.userId ?? null;
+  if (!userId) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
   const parseResult = CompleteInterviewSessionParams.safeParse({ id: Number(req.params.id) });
   if (!parseResult.success) {
     res.status(400).json({ error: "Invalid session ID" });
@@ -277,6 +315,11 @@ router.post("/sessions/:id/complete", async (req, res) => {
     const [session] = await db.select().from(interviewSessions).where(eq(interviewSessions.id, parseResult.data.id)).limit(1);
     if (!session) {
       res.status(404).json({ error: "Session not found" });
+      return;
+    }
+
+    if (session.userId !== userId) {
+      res.status(403).json({ error: "Forbidden" });
       return;
     }
 
