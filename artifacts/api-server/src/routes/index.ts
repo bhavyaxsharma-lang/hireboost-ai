@@ -5,6 +5,7 @@ import resumeRouter from "./resume";
 import parseFileRouter from "./parse-file";
 import interviewRouter from "./interview";
 import dashboardRouter from "./dashboard";
+import paymentRouter from "./payment";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use("/resume", resumeRouter);
 router.use("/resume", parseFileRouter);
 router.use("/interview", interviewRouter);
 router.use("/dashboard", dashboardRouter);
+router.use("/payment", paymentRouter);
 
 export default router;

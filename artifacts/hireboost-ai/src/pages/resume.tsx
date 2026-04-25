@@ -13,7 +13,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   FileText, Loader2, AlertCircle, CheckCircle2, ChevronRight,
   Target, LayoutTemplate, Sparkles,
-  Upload, X, FileType, Eye, EyeOff, Wand2, Copy, Download,
+  Upload, X, FileType, Eye, EyeOff, Wand2, Copy, Download, CreditCard,
 } from "lucide-react";
 import { RoleCombobox } from "@/components/role-combobox";
 
@@ -246,51 +246,103 @@ function isHeaderLine(line: string): boolean {
 }
 
 async function buildDocx(text: string, fileName: string): Promise<void> {
-  const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle } = await import("docx");
+  const {
+    Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle, ShadingType,
+  } = await import("docx");
+
+  const HEADER_BG = "1B3A5C";
+  const HEADER_TEXT = "FFFFFF";
+  const CONTACT_TEXT = "C5DDEF";
+  const SECTION_BG = "EDF4FF";
+  const SECTION_COLOR = "1B3A5C";
+  const ACCENT_LINE = "2E86AB";
+  const BODY_COLOR = "1F2937";
 
   const lines = text.split(/\r?\n/);
 
-  // Detect name block (first non-empty lines before first section header)
-  let nameDetected = false;
+  // Separate header block (name + contact) from section body
+  let firstSectionIdx = lines.findIndex((l) => isHeaderLine(l.trim()));
+  if (firstSectionIdx === -1) firstSectionIdx = Math.min(5, lines.length);
+
+  const headerLines = lines.slice(0, firstSectionIdx).map((l) => l.trim()).filter(Boolean);
+  const bodyLines = lines.slice(firstSectionIdx);
+
+  const name = headerLines[0] ?? "";
+  const contactParts = headerLines.slice(1);
+  const contactText = contactParts.join("   •   ");
+
   const docChildren: InstanceType<typeof Paragraph>[] = [];
 
-  for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i];
+  // ── Coloured name header ──────────────────────────────
+  if (name) {
+    docChildren.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: name, bold: true, size: 44, color: HEADER_TEXT, font: "Calibri" }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 0, after: 0 },
+        shading: { type: ShadingType.SOLID, color: HEADER_BG, fill: HEADER_BG },
+      }),
+    );
+  }
+
+  // ── Contact info row (same dark bg) ─────────────────
+  if (contactText) {
+    docChildren.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: contactText, size: 18, color: CONTACT_TEXT, font: "Calibri" }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 0, after: 0 },
+        shading: { type: ShadingType.SOLID, color: HEADER_BG, fill: HEADER_BG },
+      }),
+    );
+  }
+
+  // Spacer after header
+  docChildren.push(new Paragraph({ text: "", spacing: { before: 0, after: 100 } }));
+
+  // ── Body sections ────────────────────────────────────
+  for (const raw of bodyLines) {
     const line = raw.trim();
 
     if (!line) {
-      docChildren.push(new Paragraph({ text: "" }));
+      docChildren.push(new Paragraph({ text: "", spacing: { after: 40 } }));
       continue;
     }
 
     if (isHeaderLine(line)) {
-      nameDetected = true;
+      // Section header: tinted background + blue bottom border
       docChildren.push(
         new Paragraph({
-          text: line.replace(/:$/, ""),
-          heading: HeadingLevel.HEADING_2,
-          spacing: { before: 280, after: 100 },
+          children: [
+            new TextRun({
+              text: line.replace(/:$/, "").toUpperCase(),
+              bold: true,
+              size: 22,
+              color: SECTION_COLOR,
+              font: "Calibri",
+            }),
+          ],
+          spacing: { before: 220, after: 80 },
+          shading: { type: ShadingType.SOLID, color: SECTION_BG, fill: SECTION_BG },
           border: {
-            bottom: { style: BorderStyle.SINGLE, size: 6, color: "84CC16", space: 1 },
+            bottom: { style: BorderStyle.SINGLE, size: 10, color: ACCENT_LINE },
           },
         }),
       );
       continue;
     }
 
-    // Very first non-empty content before any section → treat as name/title block
-    if (!nameDetected && i < 8) {
-      if (i === 0 || (i <= 2 && !lines.slice(0, i).some((l) => l.trim()))) {
-        docChildren.push(
-          new Paragraph({
-            children: [new TextRun({ text: line, bold: true, size: 32, color: "111827" })],
-            alignment: AlignmentType.LEFT,
-            spacing: { after: 60 },
-          }),
-        );
-        continue;
-      }
-    }
+    // Detect date/company header lines (bold them)
+    const isSubHeader =
+      !line.startsWith("•") &&
+      !line.startsWith("-") &&
+      line.length < 100 &&
+      /[A-Z]/.test(line[0] ?? "") &&
+      (/\d{4}/.test(line) || /at |@/.test(line));
 
     // Bullet point
     const isBullet = /^[-•·▸►]\s/.test(line);
@@ -298,38 +350,38 @@ async function buildDocx(text: string, fileName: string): Promise<void> {
 
     docChildren.push(
       new Paragraph({
-        children: [new TextRun({ text: bulletText, size: 22 })],
+        children: [
+          new TextRun({
+            text: bulletText,
+            size: 20,
+            color: BODY_COLOR,
+            bold: isSubHeader && !isBullet,
+            font: "Calibri",
+          }),
+        ],
         bullet: isBullet ? { level: 0 } : undefined,
-        indent: isBullet ? { left: 360 } : undefined,
-        spacing: { after: 60 },
+        indent: isBullet ? { left: 360, hanging: 180 } : undefined,
+        spacing: { after: isBullet ? 40 : 60 },
       }),
     );
   }
 
   const doc = new Document({
-    styles: {
-      default: {
-        document: {
-          run: { font: "Calibri", size: 22, color: "1F2937" },
+    sections: [
+      {
+        properties: {
+          page: { margin: { top: 480, bottom: 480, left: 720, right: 720 } },
         },
+        children: docChildren,
       },
-    },
-    sections: [{
-      properties: {
-        page: {
-          margin: { top: 720, bottom: 720, left: 900, right: 900 },
-        },
-      },
-      children: docChildren,
-    }],
+    ],
   });
 
   const blob = await Packer.toBlob(doc);
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  const base = fileName.replace(/\.[^.]+$/, "");
   a.href = url;
-  a.download = `${base}_improved.docx`;
+  a.download = `${fileName.replace(/\.[^.]+$/, "")}_improved.docx`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -403,7 +455,18 @@ function ImprovedResumeCard({ text, originalFileName }: { text: string; original
 }
 
 /* ─────────────────────────────────────────────────────────
-   Auto-Fix Button — free AI rewrite
+   Razorpay types
+───────────────────────────────────────────────────────── */
+declare global {
+  interface Window {
+    Razorpay: new (options: Record<string, unknown>) => { open(): void };
+  }
+}
+
+type RewriteStatus = { freeUsed: number; freeLimit: number; hasPaidCredit: boolean };
+
+/* ─────────────────────────────────────────────────────────
+   Auto-Fix Button — 2 free rewrites, then ₹100 via Razorpay
 ───────────────────────────────────────────────────────── */
 function AutoFixButton({
   parsed,
@@ -417,9 +480,30 @@ function AutoFixButton({
   onImproved: (text: string) => void;
 }) {
   const [isRewriting, setIsRewriting] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [rewriteStatus, setRewriteStatus] = useState<RewriteStatus | null>(null);
   const { toast } = useToast();
 
-  const handleAutoFix = async () => {
+  const fetchStatus = async () => {
+    try {
+      const res = await fetch(`${getApiBase()}/resume/rewrite-status`, { credentials: "include" });
+      if (res.ok) setRewriteStatus(await res.json() as RewriteStatus);
+    } catch { /* ignore */ }
+  };
+
+  useEffect(() => { void fetchStatus(); }, []);
+
+  const loadRazorpayScript = (): Promise<boolean> =>
+    new Promise((resolve) => {
+      if (window.Razorpay) { resolve(true); return; }
+      const s = document.createElement("script");
+      s.src = "https://checkout.razorpay.com/v1/checkout.js";
+      s.onload = () => resolve(true);
+      s.onerror = () => resolve(false);
+      document.body.appendChild(s);
+    });
+
+  const doRewrite = async () => {
     if (!parsed) return;
     setIsRewriting(true);
     try {
@@ -438,11 +522,12 @@ function AutoFixButton({
         }),
       });
       if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        throw new Error((d as { error?: string }).error ?? "Rewrite failed.");
+        const d = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(d.error ?? "Rewrite failed.");
       }
       const { improvedResume } = await res.json() as { improvedResume: string };
       onImproved(improvedResume);
+      void fetchStatus();
       toast({ title: "Resume rewritten!", description: "Your optimized resume is ready to download." });
     } catch (err) {
       toast({ title: "Error", description: err instanceof Error ? err.message : "Something went wrong.", variant: "destructive" });
@@ -450,6 +535,79 @@ function AutoFixButton({
       setIsRewriting(false);
     }
   };
+
+  const handlePayAndFix = async () => {
+    setIsProcessingPayment(true);
+    try {
+      const loaded = await loadRazorpayScript();
+      if (!loaded) throw new Error("Payment SDK failed to load. Please try again.");
+
+      const orderRes = await fetch(`${getApiBase()}/payment/create-order`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!orderRes.ok) {
+        const d = await orderRes.json().catch(() => ({})) as { error?: string };
+        throw new Error(d.error ?? "Failed to create payment order.");
+      }
+      const { orderId, amount, currency, keyId } = await orderRes.json() as {
+        orderId: string; amount: number; currency: string; keyId: string;
+      };
+
+      await new Promise<void>((resolve, reject) => {
+        const rzp = new window.Razorpay({
+          key: keyId,
+          amount,
+          currency,
+          name: "HireBoost AI",
+          description: "Resume Auto-Fix Credit",
+          order_id: orderId,
+          handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
+            const verifyRes = await fetch(`${getApiBase()}/payment/verify`, {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(response),
+            });
+            if (!verifyRes.ok) { reject(new Error("Payment verification failed. Contact support.")); return; }
+            resolve();
+          },
+          modal: { ondismiss: () => reject(new Error("cancelled")) },
+          theme: { color: "#2E86AB" },
+        });
+        rzp.open();
+      });
+
+      toast({ title: "Payment successful!", description: "Rewriting your resume now…" });
+      void fetchStatus();
+      await doRewrite();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Payment failed.";
+      if (msg !== "cancelled") {
+        toast({ title: "Payment failed", description: msg, variant: "destructive" });
+      }
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
+
+  const handleClick = async () => {
+    const needsPayment = rewriteStatus
+      ? rewriteStatus.freeUsed >= rewriteStatus.freeLimit && !rewriteStatus.hasPaidCredit
+      : false;
+    if (needsPayment) {
+      await handlePayAndFix();
+    } else {
+      await doRewrite();
+    }
+  };
+
+  const freeLeft = rewriteStatus ? Math.max(0, rewriteStatus.freeLimit - rewriteStatus.freeUsed) : null;
+  const needsPayment = rewriteStatus
+    ? rewriteStatus.freeUsed >= rewriteStatus.freeLimit && !rewriteStatus.hasPaidCredit
+    : false;
+  const hasPaidCredit = rewriteStatus?.hasPaidCredit ?? false;
 
   if (isRewriting) {
     return (
@@ -460,15 +618,31 @@ function AutoFixButton({
   }
 
   return (
-    <Button
-      size="lg"
-      className="w-full bg-gradient-to-r from-primary to-lime-500 text-primary-foreground font-bold shadow-lg hover:opacity-90"
-      onClick={handleAutoFix}
-      disabled={!parsed}
-    >
-      <Wand2 className="mr-2 h-5 w-5" />
-      Auto-Fix My Resume — Free
-    </Button>
+    <div className="space-y-2">
+      {rewriteStatus && (
+        <p className="text-xs text-center text-muted-foreground">
+          {needsPayment
+            ? "Your 2 free rewrites are used up. Pay ₹100 to generate another."
+            : hasPaidCredit
+            ? "Paid credit available — rewrite included."
+            : `${freeLeft} free rewrite${freeLeft === 1 ? "" : "s"} remaining (${rewriteStatus.freeUsed}/${rewriteStatus.freeLimit} used).`}
+        </p>
+      )}
+      <Button
+        size="lg"
+        className="w-full bg-gradient-to-r from-primary to-lime-500 text-primary-foreground font-bold shadow-lg hover:opacity-90"
+        onClick={handleClick}
+        disabled={!parsed || isProcessingPayment}
+      >
+        {isProcessingPayment ? (
+          <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Processing Payment…</>
+        ) : needsPayment ? (
+          <><CreditCard className="mr-2 h-5 w-5" /> Pay ₹100 — Auto-Fix Resume</>
+        ) : (
+          <><Wand2 className="mr-2 h-5 w-5" /> Auto-Fix My Resume{freeLeft !== null && freeLeft > 0 ? " — Free" : ""}</>
+        )}
+      </Button>
+    </div>
   );
 }
 

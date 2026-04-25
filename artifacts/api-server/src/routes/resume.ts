@@ -1,39 +1,61 @@
 // Resume analysis routes
 import { Router } from "express";
-import { db, resumeAnalyses } from "@workspace/db";
-import { eq, desc, gte, and } from "drizzle-orm";
+import { db, resumeAnalyses, payments, rewriteLogs } from "@workspace/db";
+import { eq, desc, gte, and, isNull, count } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { UploadResumeBody, AnalyzeResumeBody, GetResumeAnalysisParams } from "@workspace/api-zod";
 
 const router = Router();
 
-const FREE_DAILY_LIMIT = 2;
+const FREE_REWRITE_LIMIT = 2;
 
-// Helper: count how many analyses a user has done today
-async function getDailyUsageCount(userId: number | null): Promise<number> {
-  if (!userId) return 0;
-
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-
-  const results = await db
-    .select({ id: resumeAnalyses.id })
-    .from(resumeAnalyses)
-    .where(and(eq(resumeAnalyses.userId, userId), gte(resumeAnalyses.createdAt, todayStart)));
-
-  return results.length;
+// Helper: count total free rewrites used by a user (lifetime)
+async function getFreeRewriteCount(userId: number): Promise<number> {
+  const [result] = await db
+    .select({ c: count() })
+    .from(rewriteLogs)
+    .where(and(eq(rewriteLogs.userId, userId), isNull(rewriteLogs.paymentId)));
+  return Number(result?.c ?? 0);
 }
 
-// GET /resume/daily-usage — returns how many scans the user has done today
+// Helper: find an unused verified payment for a user
+async function getUnusedPayment(userId: number) {
+  const [payment] = await db
+    .select()
+    .from(payments)
+    .where(and(eq(payments.userId, userId), eq(payments.status, "verified"), eq(payments.used, 0)))
+    .limit(1);
+  return payment ?? null;
+}
+
+// GET /resume/rewrite-status — returns free rewrite usage and credit availability
+router.get("/rewrite-status", async (req, res) => {
+  const userId = req.session?.userId ?? null;
+  if (!userId) {
+    res.json({ freeUsed: 0, freeLimit: FREE_REWRITE_LIMIT, hasPaidCredit: false });
+    return;
+  }
+  const freeUsed = await getFreeRewriteCount(userId);
+  const hasPaidCredit = !!(await getUnusedPayment(userId));
+  res.json({ freeUsed, freeLimit: FREE_REWRITE_LIMIT, hasPaidCredit });
+});
+
+// GET /resume/daily-usage — returns how many analyses the user has done today
 router.get("/daily-usage", async (req, res) => {
   const userId = req.session?.userId ?? null;
-  const used = await getDailyUsageCount(userId);
 
-  res.json({
-    used,
-    limit: FREE_DAILY_LIMIT,
-    isPro: false, // All users are free tier for now
-  });
+  let used = 0;
+  if (userId) {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const results = await db
+      .select({ id: resumeAnalyses.id })
+      .from(resumeAnalyses)
+      .where(and(eq(resumeAnalyses.userId, userId), gte(resumeAnalyses.createdAt, todayStart)));
+    used = results.length;
+  }
+
+  res.json({ used, limit: FREE_REWRITE_LIMIT, isPro: false });
 });
 
 // POST /resume/upload — extract and return resume text + word count
@@ -202,8 +224,9 @@ router.get("/history/:id", async (req, res) => {
   }
 });
 
-// POST /resume/rewrite — free AI rewrite using analysis results
+// POST /resume/rewrite — AI rewrite (2 free lifetime, then ₹100 per rewrite)
 router.post("/rewrite", async (req, res) => {
+  const userId = req.session?.userId ?? null;
   const { resumeText, atsScore, missingKeywords, suggestions, strengths, overallFeedback, jobTitle } =
     req.body as {
       resumeText?: string;
@@ -218,6 +241,26 @@ router.post("/rewrite", async (req, res) => {
   if (!resumeText) {
     res.status(400).json({ error: "Missing resumeText." });
     return;
+  }
+
+  // Credit check (only for authenticated users)
+  let paymentUsed: typeof payments.$inferSelect | null = null;
+  if (userId) {
+    const freeUsed = await getFreeRewriteCount(userId);
+    if (freeUsed >= FREE_REWRITE_LIMIT) {
+      // Check for a paid credit
+      const unusedPayment = await getUnusedPayment(userId);
+      if (!unusedPayment) {
+        res.status(402).json({
+          error: "payment_required",
+          message: "You have used your 2 free resume rewrites. Please pay ₹100 to continue.",
+          freeUsed,
+          freeLimit: FREE_REWRITE_LIMIT,
+        });
+        return;
+      }
+      paymentUsed = unusedPayment;
+    }
   }
 
   const prompt = `You are an expert resume writer and career coach. Rewrite and significantly improve the following resume.
@@ -256,6 +299,19 @@ INSTRUCTIONS:
       res.status(500).json({ error: "AI did not return an improved resume." });
       return;
     }
+
+    // Log rewrite usage
+    if (userId) {
+      await db.insert(rewriteLogs).values({
+        userId,
+        paymentId: paymentUsed?.id ?? null,
+      });
+      // Consume the paid credit if one was used
+      if (paymentUsed) {
+        await db.update(payments).set({ used: 1 }).where(eq(payments.id, paymentUsed.id));
+      }
+    }
+
     res.json({ improvedResume });
   } catch (err) {
     req.log.error({ err }, "Resume rewrite error");
