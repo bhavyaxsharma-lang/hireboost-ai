@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
@@ -33,13 +33,49 @@ app.use(
   }),
 );
 
-// Allow requests from any origin (Replit proxy)
+const isProduction = process.env.NODE_ENV === "production";
+
+// CORS — only allow requests from the known frontend origin.
+// ALLOWED_ORIGIN must be set in production (e.g. "https://yourdomain.replit.app").
+// In development the Replit dev-domain is derived automatically as a fallback.
+if (isProduction && !process.env.ALLOWED_ORIGIN) {
+  throw new Error("ALLOWED_ORIGIN must be set in production");
+}
+
+const allowedOrigin = (() => {
+  if (process.env.ALLOWED_ORIGIN) {
+    return process.env.ALLOWED_ORIGIN;
+  }
+  if (process.env.REPLIT_DEV_DOMAIN) {
+    return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  }
+  return "http://localhost:5173";
+})();
+
 app.use(
   cors({
-    origin: true,
+    origin: allowedOrigin,
     credentials: true,
   }),
 );
+
+// Defense-in-depth: for state-changing methods, reject any request whose
+// Origin header is present but does not match the allowed frontend origin.
+// Requests with no Origin header (server-to-server, CLI, webhooks) are
+// allowed through because they cannot carry a cross-site session cookie.
+const STATE_CHANGING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (!STATE_CHANGING_METHODS.has(req.method)) {
+    next();
+    return;
+  }
+  const origin = req.headers.origin;
+  if (origin !== undefined && origin !== allowedOrigin) {
+    res.status(403).json({ error: "Forbidden: invalid request origin" });
+    return;
+  }
+  next();
+});
 
 app.use(express.json({ limit: "256kb" }));
 app.use(express.urlencoded({ extended: true, limit: "256kb" }));
@@ -81,8 +117,6 @@ if (!databaseUrl) {
 
 const PgSession = connectPgSimple(session);
 
-const isProduction = process.env.NODE_ENV === "production";
-
 app.use(
   session({
     store: new PgSession({
@@ -101,8 +135,11 @@ app.use(
       // trust proxy (set above) ensures express knows the connection is HTTPS
       secure: isProduction,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      // SameSite=none required for cross-origin cookie in production
-      sameSite: isProduction ? "none" : "lax",
+      // SameSite=lax: the frontend and API share the same domain (path-based
+      // routing), so lax is sufficient and prevents cross-site request forgery.
+      // "none" is not needed and would allow browsers to send the cookie on
+      // requests originating from other sites.
+      sameSite: "lax",
     },
   }),
 );
