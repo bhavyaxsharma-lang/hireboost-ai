@@ -64,16 +64,27 @@ export default function Auth() {
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] flex">
-      {/* ── Left branding panel ── */}
-      <div className="hidden lg:flex flex-col flex-1 bg-gradient-to-br from-primary/90 to-lime-500 p-12 justify-between">
-        <div>
+      {/* ── Left branding panel — photo background ── */}
+      <div
+        className="hidden lg:flex flex-col flex-1 p-12 justify-between relative overflow-hidden"
+        style={{
+          backgroundImage: "url('https://images.pexels.com/photos/7651743/pexels-photo-7651743.jpeg?auto=compress&cs=tinysrgb&w=1400')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      >
+        {/* Dark gradient overlay so text stays legible */}
+        <div className="absolute inset-0 bg-gradient-to-br from-black/70 via-black/55 to-primary/60" />
+
+        {/* Content above overlay */}
+        <div className="relative z-10">
           <div className="text-2xl font-extrabold text-white tracking-tight mb-2">
             HireBoost <span className="opacity-80">AI</span>
           </div>
           <p className="text-white/70 text-sm">Your AI-powered career platform</p>
         </div>
 
-        <div className="space-y-6">
+        <div className="relative z-10 space-y-6">
           <h2 className="text-3xl font-extrabold text-white leading-tight">
             Everything you need to land your next job
           </h2>
@@ -89,7 +100,7 @@ export default function Auth() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 text-white/60 text-sm">
+        <div className="relative z-10 flex items-center gap-3 text-white/60 text-sm">
           <CheckCircle2 className="h-4 w-4" />
           No credit card required · Free to start
         </div>
