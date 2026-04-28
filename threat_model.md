@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-HireBoost AI is a full-stack web application for resume analysis and AI mock interview coaching. The production stack is a React + Vite frontend in `artifacts/hireboost-ai`, an Express 5 API in `artifacts/api-server`, PostgreSQL via Drizzle in `lib/db`, and OpenAI/Razorpay integrations on the server side.
+HireBoost AI is a full-stack web application for resume analysis, AI mock interview coaching, LinkedIn post generation, salary-negotiation assistance, and paid resume rewrites. The production stack is a React + Vite frontend in `artifacts/hireboost-ai`, an Express 5 API in `artifacts/api-server`, PostgreSQL via Drizzle in `lib/db`, and OpenAI/Razorpay integrations on the server side.
 
 The application handles user accounts, session cookies, uploaded resume content, interview answers and feedback, payment state for resume rewrites, and server-held API credentials. Production traffic is assumed to run with `NODE_ENV=production` behind Replit-managed TLS. The `artifacts/mockup-sandbox` app is development-only and should be ignored unless production reachability is demonstrated.
 
@@ -25,16 +25,16 @@ The application handles user accounts, session cookies, uploaded resume content,
 ## Scan Anchors
 
 - **Production entry points:** `artifacts/api-server/src/app.ts`, `artifacts/api-server/src/routes/*.ts`, `artifacts/hireboost-ai/src/App.tsx`, `lib/db/src/schema/*`.
-- **Highest-risk areas:** session/cookie/CORS setup in `artifacts/api-server/src/app.ts`; user-scoped data routes in `artifacts/api-server/src/routes/resume.ts`, `interview.ts`, `dashboard.ts`; payment logic in `payment.ts`; OpenAI-backed endpoints in `resume.ts` and `interview.ts`.
-- **Public surface:** `/api/auth/*`, `/api/health`, plus any API route that does not explicitly reject missing sessions.
-- **Authenticated surface:** dashboard, resume history, rewrite/payment status, interview history, interview session detail/actions.
+- **Highest-risk areas:** session/cookie/CORS setup in `artifacts/api-server/src/app.ts`; account recovery in `artifacts/api-server/src/routes/password-reset.ts`; user-scoped data routes in `artifacts/api-server/src/routes/resume.ts`, `interview.ts`, `dashboard.ts`; payment and rewrite-credit logic in `payment.ts` and `resume.ts`; OpenAI-backed endpoints in `resume.ts`, `interview.ts`, `linkedin.ts`, `salary.ts`, and `jd-prep.ts`; file parsing in `parse-file.ts`.
+- **Public surface:** `/api/auth/*`, `/api/health`, and any API route that does not explicitly reject missing sessions. Frontend `ProtectedRoute` pages are not a server-side control and must not be treated as sufficient protection for `/api/resume/parse-file`, `/api/linkedin/*`, or `/api/salary/*`.
+- **Authenticated surface:** dashboard, resume history, rewrite/payment status, interview history, interview session detail/actions, JD prep, LinkedIn generator, and salary-negotiation features.
 - **Dev-only:** `artifacts/mockup-sandbox`, `lib/api-spec`, `scripts`.
 
 ## Threat Categories
 
 ### Spoofing
 
-Users authenticate with email/password and a server-side session. All endpoints that return or mutate user data MUST require a valid authenticated session, and session state MUST be bound to the intended user on every request. Third-party payment callbacks or client-submitted payment confirmations MUST be verified before changing credit state.
+Users authenticate with email/password and a server-side session. All endpoints that return or mutate user data or consume paid backend resources MUST require a valid authenticated session unless they are intentionally public. Session state MUST be bound to the intended user on every request, and account-recovery flows MUST only deliver reset capability to the mailbox owner rather than to the caller of a public endpoint. Third-party payment callbacks or client-submitted payment confirmations MUST be verified before changing credit state.
 
 ### Tampering
 
@@ -46,8 +46,8 @@ Resume text, interview answers, job targets, activity history, and account metad
 
 ### Denial of Service
 
-OpenAI-backed analysis and interview generation endpoints can create direct financial cost and heavy backend load. These endpoints MUST have strong server-side access control, bounded input sizes, and abuse controls such as per-user or per-IP throttling. File parsing and large prompt construction MUST not allow unbounded memory, token, or database growth.
+OpenAI-backed analysis, LinkedIn, salary, rewrite, and interview-generation endpoints can create direct financial cost and heavy backend load. These endpoints MUST have strong server-side access control, bounded input sizes, and abuse controls such as per-user or per-IP throttling. File parsing and large prompt construction MUST not allow unauthenticated callers to create a public memory/CPU exhaustion path or unbounded token/database growth.
 
 ### Elevation of Privilege
 
-A regular or unauthenticated caller MUST NOT be able to read or modify another user's records by supplying numeric IDs or by calling endpoints directly outside the frontend flow. The backend MUST treat the client as fully untrusted and enforce authorization at every route and object lookup.
+A regular or unauthenticated caller MUST NOT be able to read or modify another user's records, claim more paid/free entitlements than intended, or invoke protected features simply by calling backend routes directly outside the frontend flow. The backend MUST treat the client as fully untrusted, enforce authorization at every route and object lookup, and make credit-consumption decisions atomically rather than with check-then-act races.
