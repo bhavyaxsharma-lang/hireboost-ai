@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { requireAuth } from "../middleware/requireAuth";
 
 const router = Router();
 
@@ -7,7 +8,7 @@ type Tone = "professional" | "storytelling" | "motivational";
 const VALID_TONES: Tone[] = ["professional", "storytelling", "motivational"];
 
 // POST /linkedin/generate
-router.post("/generate", async (req, res) => {
+router.post("/generate", requireAuth, async (req, res) => {
   const { topic, tone } = req.body as { topic?: unknown; tone?: unknown };
 
   if (typeof topic !== "string" || topic.trim().length < 3) {
@@ -66,7 +67,7 @@ Return ONLY valid JSON with exactly these fields:
 });
 
 // POST /linkedin/make-viral
-router.post("/make-viral", async (req, res) => {
+router.post("/make-viral", requireAuth, async (req, res) => {
   const { post } = req.body as { post?: unknown };
 
   if (typeof post !== "string" || post.trim().length < 10) {

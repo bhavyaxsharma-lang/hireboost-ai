@@ -112,6 +112,9 @@ app.use("/api/resume/rewrite", aiLimiter);
 app.post("/api/interview/sessions", aiLimiter);
 app.post(/^\/api\/interview\/sessions\/\d+\/answer$/, aiLimiter);
 app.post("/api/interview/jd-prep", aiLimiter);
+app.post("/api/linkedin/generate", aiLimiter);
+app.post("/api/linkedin/make-viral", aiLimiter);
+app.post("/api/salary/generate", aiLimiter);
 
 // Session middleware — PostgreSQL-backed store so sessions survive restarts
 const sessionSecret = process.env.SESSION_SECRET;

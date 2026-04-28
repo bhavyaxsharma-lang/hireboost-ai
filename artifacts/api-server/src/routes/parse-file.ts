@@ -1,6 +1,7 @@
 // File upload + text extraction route
 import { Router } from "express";
 import multer from "multer";
+import { requireAuth } from "../middleware/requireAuth";
 import { createRequire } from "node:module";
 
 // pdf-parse (v1.x) and mammoth are CJS-only — use createRequire so the
@@ -42,7 +43,7 @@ const upload = multer({
 // POST /resume/parse-file
 // Accepts multipart/form-data with field "file"
 // Returns { text: string, wordCount: number, fileName: string, fileType: string }
-router.post("/parse-file", upload.single("file"), async (req, res) => {
+router.post("/parse-file", requireAuth, upload.single("file"), async (req, res) => {
   if (!req.file) {
     res.status(400).json({ error: "No file uploaded." });
     return;

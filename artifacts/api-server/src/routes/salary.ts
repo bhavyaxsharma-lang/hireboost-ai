@@ -1,10 +1,11 @@
 import { Router } from "express";
 import { openai } from "@workspace/integrations-openai-ai-server";
+import { requireAuth } from "../middleware/requireAuth";
 
 const router = Router();
 
 // POST /salary/generate
-router.post("/generate", async (req, res) => {
+router.post("/generate", requireAuth, async (req, res) => {
   const body = req.body as {
     currentSalary?: unknown;
     offeredSalary?: unknown;
