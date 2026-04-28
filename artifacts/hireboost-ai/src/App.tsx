@@ -10,6 +10,8 @@ import { Layout } from "@/components/layout";
 // Pages
 import Home from "@/pages/home";
 import Auth from "@/pages/auth";
+import ForgotPassword from "@/pages/forgot-password";
+import ResetPassword from "@/pages/reset-password";
 import Dashboard from "@/pages/dashboard";
 import ResumeAnalyzer from "@/pages/resume";
 import InterviewHub from "@/pages/interview-hub";
@@ -33,7 +35,19 @@ function Router() {
           <Auth />
         </Layout>
       </Route>
-      
+
+      <Route path="/forgot-password">
+        <Layout>
+          <ForgotPassword />
+        </Layout>
+      </Route>
+
+      <Route path="/reset-password">
+        <Layout>
+          <ResetPassword />
+        </Layout>
+      </Route>
+
       <Route path="/dashboard">
         <ProtectedRoute>
           <Layout>
