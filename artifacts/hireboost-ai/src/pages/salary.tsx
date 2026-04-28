@@ -17,6 +17,9 @@ import {
   BarChart3,
   Lightbulb,
   IndianRupee,
+  BadgeDollarSign,
+  Coins,
+  Banknote,
 } from "lucide-react";
 
 interface SalaryResult {
@@ -28,6 +31,67 @@ interface SalaryResult {
 }
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+/* ─── Salary Photo Mosaic ─── */
+const SALARY_PHOTOS = [
+  {
+    src: "https://images.unsplash.com/photo-1554224154-26032ffc0d07?q=80&w=1000&auto=format&fit=crop",
+    alt: "Dollar bills and financial planning",
+    label: "Negotiate Smart",
+    icon: BadgeDollarSign,
+  },
+  {
+    src: "https://images.pexels.com/photos/4386374/pexels-photo-4386374.jpeg?auto=compress&cs=tinysrgb&w=700",
+    alt: "Indian rupee notes and coins",
+    label: "₹ Your Worth",
+    icon: Coins,
+  },
+  {
+    src: "https://images.unsplash.com/photo-1567427017947-545c5f8d16ad?q=80&w=700&auto=format&fit=crop",
+    alt: "Dollar and international currency",
+    label: "$ Market Rate",
+    icon: Banknote,
+  },
+];
+
+function SalaryPhotoMosaic() {
+  const [main, ...rest] = SALARY_PHOTOS;
+  return (
+    <div className="space-y-2">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.97 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5 }}
+        className="relative rounded-2xl overflow-hidden group shadow-md"
+      >
+        <img src={main.src} alt={main.alt} className="w-full h-52 object-cover transition-transform duration-700 group-hover:scale-105" loading="lazy" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+        <div className="absolute bottom-3 left-3 flex items-center gap-1.5 bg-white/15 backdrop-blur-md border border-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow">
+          <main.icon className="h-3.5 w-3.5" />{main.label}
+        </div>
+        <div className="absolute top-3 right-3 h-2.5 w-2.5 rounded-full bg-green-500 shadow-[0_0_8px_3px] shadow-green-500/60" />
+      </motion.div>
+      <div className="grid grid-cols-2 gap-2">
+        {rest.map((photo, i) => (
+          <motion.div
+            key={photo.alt}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.12 + i * 0.1 }}
+            className="relative rounded-xl overflow-hidden group shadow-sm"
+          >
+            <img src={photo.src} alt={photo.alt} className="w-full h-32 object-cover transition-transform duration-700 group-hover:scale-105" loading="lazy" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
+            <div className="absolute bottom-2 left-2 flex items-center gap-1 bg-white/15 backdrop-blur-md border border-white/20 text-white text-[10px] font-semibold px-2 py-1 rounded-full">
+              <photo.icon className="h-3 w-3" />{photo.label}
+            </div>
+          </motion.div>
+        ))}
+      </div>
+      <p className="text-[10px] text-muted-foreground text-right pr-1">Photos: Unsplash &amp; Pexels</p>
+    </div>
+  );
+}
 
 function formatInr(n: number) {
   return `₹${n.toLocaleString("en-IN")}`;
@@ -212,14 +276,11 @@ export default function SalaryNegotiation() {
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }} className="space-y-4">
           <AnimatePresence mode="wait">
             {!result && !loading && (
-              <motion.div key="placeholder" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <Card className="bg-secondary/30 border-dashed border-2 min-h-[400px] flex items-center justify-center">
-                  <div className="text-center space-y-3 p-8">
-                    <TrendingUp className="h-12 w-12 text-green-500/30 mx-auto" />
-                    <p className="text-muted-foreground text-sm">Your negotiation scripts will appear here</p>
-                    <p className="text-xs text-muted-foreground">Fill in your offer details and click Generate</p>
-                  </div>
-                </Card>
+              <motion.div key="placeholder" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4">
+                <SalaryPhotoMosaic />
+                <p className="text-xs text-muted-foreground text-center">
+                  Fill in your offer details and click <span className="font-semibold text-foreground">Generate</span> — your personalised scripts will appear here.
+                </p>
               </motion.div>
             )}
 

@@ -16,22 +16,22 @@ import { RoleCombobox, ALL_ROLES, ROLE_GROUPS } from "@/components/role-combobox
 ───────────────────────────────────────────────────────── */
 const CAREER_PHOTOS = [
   {
-    src: "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=1000&auto=format&fit=crop",
-    alt: "Group of professionals collaborating around a laptop",
-    label: "Collaborate & Learn",
+    src: "https://images.unsplash.com/photo-1551836022-deb4988cc6c0?q=80&w=1000&auto=format&fit=crop",
+    alt: "Two professionals in a job interview discussion across a table",
+    label: "Mock Interview",
     icon: Users,
     span: "full",
   },
   {
-    src: "https://images.pexels.com/photos/5945814/pexels-photo-5945814.jpeg?auto=compress&cs=tinysrgb&w=700",
-    alt: "Colleagues discussing career plans with laptops",
+    src: "https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?q=80&w=700&auto=format&fit=crop",
+    alt: "Professional interview session with feedback",
     label: "Real Feedback",
     icon: Star,
     span: "half",
   },
   {
-    src: "https://images.pexels.com/photos/7651743/pexels-photo-7651743.jpeg?auto=compress&cs=tinysrgb&w=700",
-    alt: "Career group talking together with laptops",
+    src: "https://images.unsplash.com/photo-1560472354-b33ff0c44a43?q=80&w=700&auto=format&fit=crop",
+    alt: "Two people having a business discussion at a table",
     label: "Land Your Role",
     icon: Laptop,
     span: "half",

@@ -14,6 +14,7 @@ import {
   FileText, Loader2, AlertCircle, CheckCircle2, ChevronRight,
   Target, LayoutTemplate, Sparkles,
   Upload, X, FileType, Eye, EyeOff, Wand2, Copy, Download, CreditCard,
+  GraduationCap, Award, BookOpen,
 } from "lucide-react";
 import { RoleCombobox } from "@/components/role-combobox";
 
@@ -662,6 +663,69 @@ function AutoFixButton({
 }
 
 /* ─────────────────────────────────────────────────────────
+   Resume Photo Mosaic
+───────────────────────────────────────────────────────── */
+const RESUME_PHOTOS = [
+  {
+    src: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?q=80&w=1000&auto=format&fit=crop",
+    alt: "Graduate holding diploma and carrying bag with certificates",
+    label: "Your Credentials",
+    icon: GraduationCap,
+  },
+  {
+    src: "https://images.pexels.com/photos/1181671/pexels-photo-1181671.jpeg?auto=compress&cs=tinysrgb&w=700",
+    alt: "Professional with documents and laptop bag",
+    label: "Stand Out",
+    icon: Award,
+  },
+  {
+    src: "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?q=80&w=700&auto=format&fit=crop",
+    alt: "Student studying with books and degree certificates",
+    label: "Get Noticed",
+    icon: BookOpen,
+  },
+];
+
+function ResumePhotoMosaic() {
+  const [main, ...rest] = RESUME_PHOTOS;
+  return (
+    <div className="space-y-2">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.97 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5 }}
+        className="relative rounded-2xl overflow-hidden group shadow-md"
+      >
+        <img src={main.src} alt={main.alt} className="w-full h-44 object-cover transition-transform duration-700 group-hover:scale-105" loading="lazy" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+        <div className="absolute bottom-3 left-3 flex items-center gap-1.5 bg-white/15 backdrop-blur-md border border-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow">
+          <main.icon className="h-3.5 w-3.5" />{main.label}
+        </div>
+        <div className="absolute top-3 right-3 h-2.5 w-2.5 rounded-full bg-primary shadow-[0_0_8px_3px] shadow-primary/60" />
+      </motion.div>
+      <div className="grid grid-cols-2 gap-2">
+        {rest.map((photo, i) => (
+          <motion.div
+            key={photo.alt}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.12 + i * 0.1 }}
+            className="relative rounded-xl overflow-hidden group shadow-sm"
+          >
+            <img src={photo.src} alt={photo.alt} className="w-full h-28 object-cover transition-transform duration-700 group-hover:scale-105" loading="lazy" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
+            <div className="absolute bottom-2 left-2 flex items-center gap-1 bg-white/15 backdrop-blur-md border border-white/20 text-white text-[10px] font-semibold px-2 py-1 rounded-full">
+              <photo.icon className="h-3 w-3" />{photo.label}
+            </div>
+          </motion.div>
+        ))}
+      </div>
+      <p className="text-[10px] text-muted-foreground text-right pr-1">Photos: Unsplash &amp; Pexels</p>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────
    Main Page
 ───────────────────────────────────────────────────────── */
 export default function ResumeAnalyzer() {
@@ -737,7 +801,7 @@ export default function ResumeAnalyzer() {
                 </CardContent>
               </Card>
 
-              {/* Target role + analyze */}
+              {/* Target role + analyze + photo mosaic */}
               <div className="space-y-4">
                 <Card className="border-border/50 shadow-sm">
                   <CardHeader>
@@ -765,6 +829,7 @@ export default function ResumeAnalyzer() {
                     </Button>
                   </CardFooter>
                 </Card>
+                <ResumePhotoMosaic />
               </div>
             </div>
           </motion.div>

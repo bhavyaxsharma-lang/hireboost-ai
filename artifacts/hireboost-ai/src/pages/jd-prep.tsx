@@ -10,8 +10,69 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2, Sparkles, ChevronDown, ChevronUp,
   Briefcase, Tag, Lightbulb, MessageSquareQuote,
-  ClipboardList, Info,
+  ClipboardList, Info, SmilePlus, Users2, PartyPopper,
 } from "lucide-react";
+
+/* ─── JD Prep Photo Mosaic ─── */
+const JD_PHOTOS = [
+  {
+    src: "https://images.unsplash.com/photo-1543269865-cbf427effbad?q=80&w=1000&auto=format&fit=crop",
+    alt: "Diverse group of professionals happily preparing for interviews",
+    label: "Interview Ready",
+    icon: SmilePlus,
+  },
+  {
+    src: "https://images.pexels.com/photos/3184418/pexels-photo-3184418.jpeg?auto=compress&cs=tinysrgb&w=700",
+    alt: "Happy team celebrating job offer success",
+    label: "Team Success",
+    icon: Users2,
+  },
+  {
+    src: "https://images.pexels.com/photos/3184405/pexels-photo-3184405.jpeg?auto=compress&cs=tinysrgb&w=700",
+    alt: "Excited professionals celebrating career milestone",
+    label: "Land The Job",
+    icon: PartyPopper,
+  },
+];
+
+function JDPhotoMosaic() {
+  const [main, ...rest] = JD_PHOTOS;
+  return (
+    <div className="space-y-2">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.97 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5 }}
+        className="relative rounded-2xl overflow-hidden group shadow-md"
+      >
+        <img src={main.src} alt={main.alt} className="w-full h-52 object-cover transition-transform duration-700 group-hover:scale-105" loading="lazy" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+        <div className="absolute bottom-3 left-3 flex items-center gap-1.5 bg-white/15 backdrop-blur-md border border-white/20 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow">
+          <main.icon className="h-3.5 w-3.5" />{main.label}
+        </div>
+        <div className="absolute top-3 right-3 h-2.5 w-2.5 rounded-full bg-primary shadow-[0_0_8px_3px] shadow-primary/60" />
+      </motion.div>
+      <div className="grid grid-cols-2 gap-2">
+        {rest.map((photo, i) => (
+          <motion.div
+            key={photo.alt}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.12 + i * 0.1 }}
+            className="relative rounded-xl overflow-hidden group shadow-sm"
+          >
+            <img src={photo.src} alt={photo.alt} className="w-full h-32 object-cover transition-transform duration-700 group-hover:scale-105" loading="lazy" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
+            <div className="absolute bottom-2 left-2 flex items-center gap-1 bg-white/15 backdrop-blur-md border border-white/20 text-white text-[10px] font-semibold px-2 py-1 rounded-full">
+              <photo.icon className="h-3 w-3" />{photo.label}
+            </div>
+          </motion.div>
+        ))}
+      </div>
+      <p className="text-[10px] text-muted-foreground text-right pr-1">Photos: Unsplash &amp; Pexels</p>
+    </div>
+  );
+}
 
 const CATEGORY_COLORS: Record<string, string> = {
   Technical: "bg-blue-500/10 text-blue-600 border-blue-500/20",
@@ -177,65 +238,74 @@ export default function JDPrep() {
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          className="space-y-5"
         >
-          <div className="space-y-2">
-            <Label htmlFor="jd" className="text-sm font-semibold">Job Description</Label>
-            <Textarea
-              id="jd"
-              placeholder="Paste the full job description here — the more detail you include, the more accurate the questions will be..."
-              value={jobDescription}
-              onChange={(e) => setJobDescription(e.target.value)}
-              className="min-h-[260px] resize-none font-mono text-sm leading-relaxed"
-              disabled={isLoading}
-            />
-            <p className="text-xs text-muted-foreground text-right">
-              {jobDescription.length} characters
-              {jobDescription.length < 50 && jobDescription.length > 0 && (
-                <span className="text-destructive ml-1">— need at least 50</span>
-              )}
-            </p>
-          </div>
+          <div className="grid md:grid-cols-2 gap-8 items-start">
+            {/* Left: Form */}
+            <div className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="jd" className="text-sm font-semibold">Job Description</Label>
+                <Textarea
+                  id="jd"
+                  placeholder="Paste the full job description here — the more detail you include, the more accurate the questions will be..."
+                  value={jobDescription}
+                  onChange={(e) => setJobDescription(e.target.value)}
+                  className="min-h-[260px] resize-none font-mono text-sm leading-relaxed"
+                  disabled={isLoading}
+                />
+                <p className="text-xs text-muted-foreground text-right">
+                  {jobDescription.length} characters
+                  {jobDescription.length < 50 && jobDescription.length > 0 && (
+                    <span className="text-destructive ml-1">— need at least 50</span>
+                  )}
+                </p>
+              </div>
 
-          <div className="flex items-end gap-4 flex-wrap">
-            <div className="space-y-1.5 w-56">
-              <Label className="text-sm font-semibold">Number of Questions</Label>
-              <Select value={questionCount} onValueChange={setQuestionCount} disabled={isLoading}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="5">5 Questions — Quick prep</SelectItem>
-                  <SelectItem value="8">8 Questions — Standard</SelectItem>
-                  <SelectItem value="10">10 Questions — Thorough</SelectItem>
-                  <SelectItem value="12">12 Questions — Deep dive</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex items-end gap-4 flex-wrap">
+                <div className="space-y-1.5 w-56">
+                  <Label className="text-sm font-semibold">Number of Questions</Label>
+                  <Select value={questionCount} onValueChange={setQuestionCount} disabled={isLoading}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5 Questions — Quick prep</SelectItem>
+                      <SelectItem value="8">8 Questions — Standard</SelectItem>
+                      <SelectItem value="10">10 Questions — Thorough</SelectItem>
+                      <SelectItem value="12">12 Questions — Deep dive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Button
+                  onClick={handleGenerate}
+                  disabled={isLoading || jobDescription.trim().length < 50}
+                  className="h-10 px-6 font-bold shadow-lg shadow-primary/20 gap-2"
+                >
+                  {isLoading
+                    ? <><Loader2 className="h-4 w-4 animate-spin" /> Analysing JD…</>
+                    : <><Sparkles className="h-4 w-4" /> Generate Questions</>
+                  }
+                </Button>
+              </div>
+
+              {isLoading && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex flex-col items-center justify-center py-12 space-y-4 text-muted-foreground"
+                >
+                  <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                  <p className="text-sm font-medium">Analysing your job description…</p>
+                  <p className="text-xs">The AI is reading the JD and crafting tailored questions for you</p>
+                </motion.div>
+              )}
             </div>
 
-            <Button
-              onClick={handleGenerate}
-              disabled={isLoading || jobDescription.trim().length < 50}
-              className="h-10 px-6 font-bold shadow-lg shadow-primary/20 gap-2"
-            >
-              {isLoading
-                ? <><Loader2 className="h-4 w-4 animate-spin" /> Analysing JD…</>
-                : <><Sparkles className="h-4 w-4" /> Generate Questions</>
-              }
-            </Button>
+            {/* Right: Photo mosaic */}
+            <div className="hidden md:block">
+              <JDPhotoMosaic />
+            </div>
           </div>
-
-          {isLoading && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex flex-col items-center justify-center py-16 space-y-4 text-muted-foreground"
-            >
-              <Loader2 className="h-10 w-10 animate-spin text-primary" />
-              <p className="text-sm font-medium">Analysing your job description…</p>
-              <p className="text-xs">The AI is reading the JD and crafting tailored questions for you</p>
-            </motion.div>
-          )}
         </motion.div>
       )}
 
