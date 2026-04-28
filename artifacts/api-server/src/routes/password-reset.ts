@@ -1,14 +1,37 @@
 import { Router } from "express";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
-import { db } from "@workspace/db";
+import { db, pool } from "@workspace/db";
 import { users, passwordResetTokens } from "@workspace/db";
 import { eq, and, gt, isNull } from "drizzle-orm";
+import { sendPasswordResetEmail } from "../lib/email";
+
+/**
+ * Returns the trusted application origin used to construct password reset URLs.
+ *
+ * Uses only server-side environment variables — never request headers — to
+ * prevent password-reset-poisoning / host-header injection attacks.
+ *
+ * Priority:
+ *  1. APP_ORIGIN  — explicitly configured canonical origin (preferred for prod)
+ *  2. REPLIT_DEV_DOMAIN — injected by the Replit platform (trusted, dev only)
+ *
+ * Returns null when neither is set; callers must handle the absence gracefully.
+ */
+function getAppOrigin(): string | null {
+  if (process.env.APP_ORIGIN) {
+    return process.env.APP_ORIGIN.replace(/\/$/, "");
+  }
+  if (process.env.REPLIT_DEV_DOMAIN) {
+    return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  }
+  return null;
+}
 
 const router = Router();
 
 // POST /auth/forgot-password
-// Accepts { email } — creates a token and returns the reset link (shown on-screen for now)
+// Accepts { email } — generates a reset token and stores it; delivery is via email (not the response)
 router.post("/forgot-password", async (req, res) => {
   const { email } = req.body;
   if (!email || typeof email !== "string") {
@@ -19,9 +42,9 @@ router.post("/forgot-password", async (req, res) => {
   try {
     const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim())).limit(1);
 
-    // Always respond with success to avoid email enumeration
+    // Always respond with the same success message to avoid email enumeration
     if (!user) {
-      res.json({ message: "If that email is registered, a reset link has been generated." });
+      res.json({ message: "If that email is registered, a reset link has been sent to your inbox." });
       return;
     }
 
@@ -35,14 +58,29 @@ router.post("/forgot-password", async (req, res) => {
       expiresAt,
     });
 
-    // Build the reset URL (works for both dev and production)
-    const origin = req.headers.origin || `https://${req.headers.host}`;
-    const resetUrl = `${origin}/reset-password?token=${token}`;
+    // Build the reset URL from trusted server-side configuration only.
+    // Never use request headers (Origin, Host) here — an attacker can forge
+    // them to redirect the reset token to infrastructure they control
+    // (password-reset poisoning / token exfiltration via click).
+    const appOrigin = getAppOrigin();
+    if (!appOrigin) {
+      req.log.error("APP_ORIGIN is not configured — cannot send password reset email");
+      // Return success to the caller to avoid enumeration; log internally.
+      res.json({ message: "If that email is registered, a reset link has been sent to your inbox." });
+      return;
+    }
+    const resetUrl = `${appOrigin}/reset-password?token=${token}`;
+
+    // Fire-and-forget: log delivery failures internally but never bubble them
+    // to the caller. Propagating email-send errors would let an attacker
+    // distinguish registered from unregistered addresses by observing
+    // whether the endpoint returns 200 or 500.
+    sendPasswordResetEmail({ to: user.email, resetUrl }).catch((err: unknown) => {
+      req.log.error({ err, userId: user.id }, "Failed to send password reset email");
+    });
 
     res.json({
-      message: "Reset link generated successfully.",
-      resetUrl,
-      expiresIn: "1 hour",
+      message: "If that email is registered, a reset link has been sent to your inbox.",
     });
   } catch (err) {
     req.log.error({ err }, "Error generating password reset token");
@@ -92,6 +130,15 @@ router.post("/reset-password", async (req, res) => {
       db.update(users).set({ passwordHash }).where(eq(users.id, resetRecord.userId)),
       db.update(passwordResetTokens).set({ usedAt: now }).where(eq(passwordResetTokens.id, resetRecord.id)),
     ]);
+
+    // Revoke all existing sessions for this user so that any previously stolen
+    // session cookie cannot be reused after the password is changed. The
+    // user_sessions table is managed by connect-pg-simple; the sess column
+    // contains the session JSON, and userId is stored inside it.
+    await pool.query(
+      `DELETE FROM user_sessions WHERE sess->>'userId' = $1`,
+      [String(resetRecord.userId)]
+    );
 
     res.json({ message: "Password updated successfully. You can now log in." });
   } catch (err) {

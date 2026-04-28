@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
-import { Loader2, ArrowLeft, Mail, Copy, CheckCheck } from "lucide-react";
+import { Loader2, ArrowLeft, Mail } from "lucide-react";
 
 export default function ForgotPassword() {
   const [, setLocation] = useLocation();
@@ -13,8 +13,7 @@ export default function ForgotPassword() {
 
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [resetUrl, setResetUrl] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,23 +29,12 @@ export default function ForgotPassword() {
         toast({ title: "Error", description: data.error || "Something went wrong.", variant: "destructive" });
         return;
       }
-      if (data.resetUrl) {
-        setResetUrl(data.resetUrl);
-      } else {
-        toast({ title: "Check your email", description: data.message });
-      }
+      setSubmitted(true);
     } catch {
       toast({ title: "Network error", description: "Could not connect. Please try again.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleCopy = async () => {
-    if (!resetUrl) return;
-    await navigator.clipboard.writeText(resetUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -71,11 +59,11 @@ export default function ForgotPassword() {
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight">Forgot your password?</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Enter your email and we'll generate a reset link for you.
+            Enter your email and we'll send you a reset link.
           </p>
         </div>
 
-        {!resetUrl ? (
+        {!submitted ? (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="email">Email address</Label>
@@ -92,7 +80,7 @@ export default function ForgotPassword() {
             </div>
             <Button type="submit" className="w-full h-11 font-bold" disabled={isLoading}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Generate Reset Link
+              Send Reset Link
             </Button>
           </form>
         ) : (
@@ -101,32 +89,18 @@ export default function ForgotPassword() {
             animate={{ opacity: 1, scale: 1 }}
             className="space-y-4"
           >
-            <div className="rounded-xl border border-border bg-muted/40 p-4 space-y-3">
-              <p className="text-sm font-medium text-foreground">Your password reset link:</p>
-              <p className="text-xs text-muted-foreground break-all bg-background rounded-lg p-3 border border-border font-mono">
-                {resetUrl}
+            <div className="rounded-xl border border-border bg-muted/40 p-4 space-y-2 text-center">
+              <p className="text-sm font-medium text-foreground">Check your inbox</p>
+              <p className="text-sm text-muted-foreground">
+                If <span className="font-semibold">{email}</span> is registered, we've sent a password reset link to that address. The link expires in 1 hour.
               </p>
-              <Button
-                variant="outline"
-                className="w-full h-10 gap-2"
-                onClick={handleCopy}
-              >
-                {copied ? (
-                  <><CheckCheck className="h-4 w-4 text-green-500" /> Copied!</>
-                ) : (
-                  <><Copy className="h-4 w-4" /> Copy Link</>
-                )}
-              </Button>
             </div>
-            <p className="text-xs text-muted-foreground text-center">
-              This link expires in <span className="font-semibold">1 hour</span>. Open it in your browser to set a new password.
-            </p>
             <Button
               variant="link"
               className="w-full text-primary"
-              onClick={() => setLocation(resetUrl.replace(window.location.origin, ""))}
+              onClick={() => setLocation("/auth")}
             >
-              Open reset link now →
+              Back to login
             </Button>
           </motion.div>
         )}
