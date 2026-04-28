@@ -68,7 +68,7 @@ export default function Auth() {
       <div
         className="hidden lg:flex flex-col flex-1 p-12 justify-between relative overflow-hidden"
         style={{
-          backgroundImage: "url('https://images.pexels.com/photos/7651743/pexels-photo-7651743.jpeg?auto=compress&cs=tinysrgb&w=1400')",
+          backgroundImage: "url('https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=1400&auto=format&fit=crop')",
           backgroundSize: "cover",
           backgroundPosition: "center",
         }}
