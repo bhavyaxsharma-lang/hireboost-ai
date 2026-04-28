@@ -12,6 +12,7 @@ import Home from "@/pages/home";
 import Auth from "@/pages/auth";
 import ForgotPassword from "@/pages/forgot-password";
 import ResetPassword from "@/pages/reset-password";
+import JDPrep from "@/pages/jd-prep";
 import Dashboard from "@/pages/dashboard";
 import ResumeAnalyzer from "@/pages/resume";
 import InterviewHub from "@/pages/interview-hub";
@@ -68,6 +69,14 @@ function Router() {
         <ProtectedRoute>
           <Layout>
             <InterviewHub />
+          </Layout>
+        </ProtectedRoute>
+      </Route>
+
+      <Route path="/jd-prep">
+        <ProtectedRoute>
+          <Layout>
+            <JDPrep />
           </Layout>
         </ProtectedRoute>
       </Route>

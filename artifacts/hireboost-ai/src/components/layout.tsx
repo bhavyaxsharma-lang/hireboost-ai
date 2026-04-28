@@ -5,7 +5,7 @@ import { useLogoutUser } from "@workspace/api-client-react";
 import { Button } from "./ui/button";
 import {
   LayoutDashboard, FileText, Video, History, LogOut,
-  Menu, UserCircle, Linkedin, TrendingUp,
+  Menu, UserCircle, Linkedin, TrendingUp, ClipboardList,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "./ui/sheet";
 import { useTheme } from "./theme-provider";
@@ -15,6 +15,7 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/resume", label: "Analyzer", icon: FileText },
   { href: "/interview", label: "Interview", icon: Video },
+  { href: "/jd-prep", label: "JD Prep", icon: ClipboardList },
   { href: "/linkedin", label: "LinkedIn", icon: Linkedin },
   { href: "/salary", label: "Salary", icon: TrendingUp },
   { href: "/history", label: "History", icon: History },
