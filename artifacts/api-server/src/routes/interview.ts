@@ -232,6 +232,14 @@ router.post("/sessions/:id/answer", async (req, res) => {
       return;
     }
 
+    // Prevent re-evaluation of an already-answered question. Without this guard
+    // an attacker could loop submissions to the same questionId and drive
+    // unbounded AI spend even if the AI rate limiter is bypassed.
+    if (question.userAnswer !== null) {
+      res.status(409).json({ error: "This question has already been answered." });
+      return;
+    }
+
     // Get AI feedback
     const prompt = `You are an expert interview coach. Evaluate this interview answer and provide a sample model answer.
 

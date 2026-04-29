@@ -211,7 +211,8 @@ export const SubmitAnswerParams = zod.object({
 
 export const SubmitAnswerBody = zod.object({
   questionId: zod.number(),
-  answer: zod.string(),
+  // Cap answer length to prevent unbounded prompt payloads sent to the AI.
+  answer: zod.string().max(10_000),
 });
 
 export const SubmitAnswerResponse = zod.object({

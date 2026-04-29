@@ -148,6 +148,17 @@ const aiLimiter = rateLimit({
   message: { error: "Too many AI requests, please slow down." },
 });
 
+// Rate limit for CPU-intensive file parsing: 20 requests per 15 minutes per IP.
+// Tighter than the general limiter to limit parser-bomb throughput without
+// blocking normal resume upload workflows.
+const parseFileLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many file parse requests, please try again later." },
+});
+
 // Auth rate limit: 10 login/register attempts per 15 minutes per IP.
 // Prevents password spraying and credential-stuffing attacks on the login and
 // registration endpoints without affecting other API routes.
@@ -173,10 +184,14 @@ app.use("/api", generalLimiter);
 app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
 app.use("/api/auth/forgot-password", passwordResetLimiter);
+// Dedicated limiter for CPU-intensive file parsing (applied before the route handler).
+app.post("/api/resume/parse-file", parseFileLimiter);
 app.use("/api/resume/analyze", aiLimiter);
 app.use("/api/resume/rewrite", aiLimiter);
 app.post("/api/interview/sessions", aiLimiter);
-app.post(/^\/api\/interview\/sessions\/\d+\/answer$/, aiLimiter);
+// The trailing-slash variant (/answer/) must also hit the AI limiter.
+// Express default non-strict routing accepts both forms; the regex covers both.
+app.post(/^\/api\/interview\/sessions\/\d+\/answer\/?$/, aiLimiter);
 app.post("/api/interview/jd-prep", aiLimiter);
 app.post("/api/linkedin/generate", aiLimiter);
 app.post("/api/linkedin/make-viral", aiLimiter);
