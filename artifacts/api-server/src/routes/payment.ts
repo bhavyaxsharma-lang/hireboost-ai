@@ -89,7 +89,42 @@ router.post("/verify", async (req, res) => {
   }
 
   try {
-    await db
+    // Server-to-server confirmation: fetch the payment from Razorpay and verify
+    // it is actually captured and belongs to the declared order before granting credit.
+    const razorpay = getRazorpay();
+
+    const paymentDetails = await razorpay.payments.fetch(razorpay_payment_id);
+
+    if (paymentDetails.status !== "captured") {
+      req.log.warn(
+        { razorpay_payment_id, status: paymentDetails.status },
+        "Payment not captured; refusing to grant credit",
+      );
+      res.status(402).json({ error: "Payment has not been captured" });
+      return;
+    }
+
+    if (paymentDetails.order_id !== razorpay_order_id) {
+      req.log.warn(
+        { razorpay_payment_id, declared_order: razorpay_order_id, actual_order: paymentDetails.order_id },
+        "Payment order_id mismatch; refusing to grant credit",
+      );
+      res.status(400).json({ error: "Payment order mismatch" });
+      return;
+    }
+
+    const orderDetails = await razorpay.orders.fetch(razorpay_order_id);
+
+    if (orderDetails.status !== "paid") {
+      req.log.warn(
+        { razorpay_order_id, status: orderDetails.status },
+        "Order not paid; refusing to grant credit",
+      );
+      res.status(402).json({ error: "Order has not been paid" });
+      return;
+    }
+
+    const updated = await db
       .update(payments)
       .set({
         razorpayPaymentId: razorpay_payment_id,
@@ -100,8 +135,19 @@ router.post("/verify", async (req, res) => {
         and(
           eq(payments.razorpayOrderId, razorpay_order_id),
           eq(payments.userId, userId),
+          eq(payments.status, "pending"),
         ),
+      )
+      .returning({ id: payments.id });
+
+    if (updated.length === 0) {
+      req.log.warn(
+        { razorpay_order_id, userId },
+        "No pending payment row found to verify — already processed, missing, or owned by another user",
       );
+      res.status(409).json({ error: "Payment record not found or already processed" });
+      return;
+    }
 
     res.json({ success: true });
   } catch (err) {

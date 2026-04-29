@@ -7,6 +7,7 @@ import rateLimit from "express-rate-limit";
 import path from "path";
 import fs from "fs";
 import router from "./routes";
+import webhookRouter from "./routes/webhook";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
@@ -121,6 +122,10 @@ if (isProduction) {
     logger.warn({ frontendDist }, "Frontend dist directory not found — skipping static serving");
   }
 }
+
+// Webhook routes must receive the raw request body for HMAC signature validation.
+// Mount them BEFORE express.json() using express.raw() so the body is not parsed.
+app.use("/api/webhooks", express.raw({ type: "application/json", limit: "256kb" }), webhookRouter);
 
 app.use(express.json({ limit: "256kb" }));
 app.use(express.urlencoded({ extended: true, limit: "256kb" }));
