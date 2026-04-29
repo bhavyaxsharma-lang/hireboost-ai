@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import {
   FileText, Video, Trophy, TrendingUp, Target,
-  Activity, Linkedin, Star, ArrowRight, Sparkles,
+  Activity, ClipboardList, Star, ArrowRight, Sparkles,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
@@ -20,7 +20,7 @@ function greeting() {
 const quickActions = [
   { href: "/resume", icon: FileText, label: "Analyze Resume", desc: "Score your CV instantly", color: "text-emerald-500", bg: "bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-950/60", border: "border-emerald-200 dark:border-emerald-800" },
   { href: "/interview", icon: Video, label: "Mock Interview", desc: "Practice with AI coach", color: "text-blue-500", bg: "bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-950/60", border: "border-blue-200 dark:border-blue-800" },
-  { href: "/linkedin", icon: Linkedin, label: "LinkedIn Post", desc: "Generate viral content", color: "text-[#0A66C2]", bg: "bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-950/60", border: "border-sky-200 dark:border-sky-800" },
+  { href: "/jd-prep", icon: ClipboardList, label: "JD Prep", desc: "Tailored interview Q&A", color: "text-amber-500", bg: "bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-950/60", border: "border-amber-200 dark:border-amber-800" },
   { href: "/salary", icon: TrendingUp, label: "Salary Tool", desc: "Negotiate a better offer", color: "text-violet-500", bg: "bg-violet-50 dark:bg-violet-950/40 hover:bg-violet-100 dark:hover:bg-violet-950/60", border: "border-violet-200 dark:border-violet-800" },
 ];
 

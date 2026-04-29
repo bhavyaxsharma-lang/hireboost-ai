@@ -7,7 +7,7 @@ import {
   CheckCircle2,
   FileText,
   Video,
-  Linkedin,
+  ClipboardList,
   TrendingUp,
   Sparkles,
   Star,
@@ -36,13 +36,13 @@ const features = [
     pills: ["100+ Roles", "Real-time Feedback", "Answer Examples"],
   },
   {
-    icon: Linkedin,
-    color: "text-[#0A66C2]",
-    bg: "bg-sky-50 dark:bg-sky-950/40",
-    border: "border-sky-200 dark:border-sky-800",
-    title: "LinkedIn Generator",
-    desc: "Turn any idea into a scroll-stopping LinkedIn post with the perfect hook, body, and hashtags — in seconds.",
-    pills: ["3 Tone Styles", "Viral Booster", "One-click Copy"],
+    icon: ClipboardList,
+    color: "text-amber-500",
+    bg: "bg-amber-50 dark:bg-amber-950/40",
+    border: "border-amber-200 dark:border-amber-800",
+    title: "JD Interview Prep",
+    desc: "Paste any job description and get tailored interview questions with model answers, so you walk in fully prepared.",
+    pills: ["AI Q&A", "Model Answers", "Role-specific"],
   },
   {
     icon: TrendingUp,
@@ -64,7 +64,7 @@ const stats = [
 
 const steps = [
   { n: "01", title: "Sign up for free", body: "Create your account in under 30 seconds — no credit card required." },
-  { n: "02", title: "Pick your tool", body: "Use the Resume Analyzer, Mock Interview, LinkedIn Generator, or Salary Tool." },
+  { n: "02", title: "Pick your tool", body: "Use the Resume Analyzer, Mock Interview, JD Interview Prep, or Salary Negotiation tool." },
   { n: "03", title: "Get AI-powered results", body: "Receive detailed, actionable output that directly improves your job search." },
 ];
 
@@ -102,7 +102,7 @@ export default function Home() {
             </h1>
 
             <p className="text-lg md:text-xl text-muted-foreground max-w-xl leading-relaxed">
-              Score your resume, ace AI mock interviews, craft viral LinkedIn posts, and negotiate a better salary — all in one platform.
+              Score your resume, ace AI mock interviews, prep from any job description, and negotiate a better salary — all in one platform.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-3 mt-2">

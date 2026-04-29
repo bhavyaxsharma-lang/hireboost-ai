@@ -6,12 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
-import { Loader2, CheckCircle2, FileText, Video, Linkedin, TrendingUp } from "lucide-react";
+import { Loader2, CheckCircle2, FileText, Video, ClipboardList, TrendingUp } from "lucide-react";
 
 const perks = [
   { icon: FileText, text: "Instant ATS Resume Scoring" },
   { icon: Video, text: "AI Mock Interviews with Feedback" },
-  { icon: Linkedin, text: "LinkedIn Post Generator" },
+  { icon: ClipboardList, text: "JD Interview Prep" },
   { icon: TrendingUp, text: "Salary Negotiation Scripts" },
 ];
 

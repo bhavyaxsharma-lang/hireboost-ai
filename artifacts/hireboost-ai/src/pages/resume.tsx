@@ -667,8 +667,8 @@ function AutoFixButton({
 ───────────────────────────────────────────────────────── */
 const RESUME_PHOTOS = [
   {
-    src: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?q=80&w=1000&auto=format&fit=crop",
-    alt: "Graduate holding diploma and carrying bag with certificates",
+    src: "https://images.unsplash.com/photo-1541339907198-e08756dedf3f?q=80&w=1000&auto=format&fit=crop",
+    alt: "Graduates at a university ceremony",
     label: "Your Credentials",
     icon: GraduationCap,
   },
