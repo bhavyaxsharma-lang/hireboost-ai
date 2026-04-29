@@ -18,10 +18,12 @@ export const HealthCheckResponse = zod.object({
 /**
  * @summary Register a new user
  */
+export const registerUserBodyPasswordMin = 8;
+
 export const RegisterUserBody = zod.object({
   name: zod.string(),
   email: zod.string(),
-  password: zod.string(),
+  password: zod.string().min(registerUserBodyPasswordMin),
 });
 
 /**
@@ -156,10 +158,17 @@ export const ListInterviewSessionsResponse = zod.array(
 /**
  * @summary Create a new interview session and generate questions
  */
+export const createInterviewSessionBodyQuestionCountMax = 20;
+
 export const CreateInterviewSessionBody = zod.object({
   jobRole: zod.string(),
   difficulty: zod.enum(["easy", "medium", "hard"]).optional(),
-  questionCount: zod.number().int().min(1).max(20).optional(),
+  questionCount: zod
+    .number()
+    .int()
+    .min(1)
+    .max(createInterviewSessionBodyQuestionCountMax)
+    .optional(),
 });
 
 /**

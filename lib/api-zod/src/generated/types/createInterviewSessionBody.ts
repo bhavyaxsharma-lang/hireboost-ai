@@ -10,5 +10,9 @@ import type { CreateInterviewSessionBodyDifficulty } from "./createInterviewSess
 export interface CreateInterviewSessionBody {
   jobRole: string;
   difficulty?: CreateInterviewSessionBodyDifficulty;
+  /**
+   * @minimum 1
+   * @maximum 20
+   */
   questionCount?: number;
 }

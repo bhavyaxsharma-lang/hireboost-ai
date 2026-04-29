@@ -9,5 +9,6 @@
 export interface RegisterBody {
   name: string;
   email: string;
+  /** @minLength 8 */
   password: string;
 }

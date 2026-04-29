@@ -37,40 +37,77 @@ app.use(
 
 const isProduction = process.env.NODE_ENV === "production";
 
-// In production, the frontend is served by this same Express process (same-origin),
-// so no CORS headers or origin validation are needed — browsers allow same-origin
-// requests unconditionally. REPLIT_DEV_DOMAIN is present in both dev and prod
-// environments, so we must check NODE_ENV first before using it.
-const allowedOrigin: string | null = (() => {
+// Build the set of origins that are permitted to make state-changing requests.
+//
+// In production the frontend is served from the same domain as the API
+// (same-origin deployment). A legitimate same-origin browser request does NOT
+// carry an Origin header, so it always passes the check below. An attacker
+// hosting a cross-site form or script will trigger the browser to attach an
+// Origin header pointing to the attacker's domain, which will not be in this
+// set and will be rejected with 403.
+//
+// REPLIT_DEV_DOMAIN is present in both dev and prod environments, so we must
+// check NODE_ENV first.
+const allowedOriginsSet = new Set<string>();
+if (process.env.ALLOWED_ORIGIN) {
   // Explicit override always wins (e.g. custom domain cross-origin setups).
-  if (process.env.ALLOWED_ORIGIN) return process.env.ALLOWED_ORIGIN;
-  // Production: frontend and API share the same origin — skip CORS entirely.
-  if (isProduction) return null;
-  // Development: use the Replit dev domain so the Vite dev server can call the API.
-  if (process.env.REPLIT_DEV_DOMAIN) return `https://${process.env.REPLIT_DEV_DOMAIN}`;
-  return "http://localhost:5173";
-})();
+  // Strip trailing slash to avoid allowlist mismatches (Origin headers never
+  // include a trailing slash per spec).
+  allowedOriginsSet.add(process.env.ALLOWED_ORIGIN.replace(/\/$/, ""));
+} else if (isProduction) {
+  // REPLIT_DOMAINS is a comma-separated list of production domain names
+  // provided by the Replit platform (e.g. "my-app.replit.app,custom.com").
+  if (process.env.REPLIT_DOMAINS) {
+    for (const d of process.env.REPLIT_DOMAINS.split(",")) {
+      const trimmed = d.trim();
+      if (trimmed) allowedOriginsSet.add(`https://${trimmed}`);
+    }
+  }
+  // Fail fast at startup in production if no origins could be resolved.
+  // An empty allowlist would reject every state-changing request that carries
+  // an Origin header — including the legitimate frontend — making the app
+  // unusable. Crash loudly so the misconfiguration is caught during deployment
+  // rather than surfacing as silent 403s at runtime.
+  if (allowedOriginsSet.size === 0) {
+    throw new Error(
+      "Production origin allowlist is empty. " +
+      "Set REPLIT_DOMAINS (provided by the Replit platform) or ALLOWED_ORIGIN " +
+      "to configure trusted origins before starting the server."
+    );
+  }
+} else {
+  // Development: use the Replit dev domain so the Vite dev server can reach the API.
+  if (process.env.REPLIT_DEV_DOMAIN) {
+    allowedOriginsSet.add(`https://${process.env.REPLIT_DEV_DOMAIN}`);
+  } else {
+    allowedOriginsSet.add("http://localhost:5173");
+  }
+}
+
+// Use the first entry as the single CORS origin (browsers require one explicit
+// value when credentials are included).
+const allowedOrigin = allowedOriginsSet.size > 0 ? [...allowedOriginsSet][0] : null;
 
 if (allowedOrigin) {
   app.use(cors({ origin: allowedOrigin, credentials: true }));
 }
 
 // Defense-in-depth: for state-changing methods, reject any request whose
-// Origin header is present but does not match the allowed frontend origin.
-// Skipped when same-origin (production without ALLOWED_ORIGIN) since the
-// browser never sends a cross-origin Origin header in that case.
+// Origin header is present but does not belong to an allowed origin.
+// In production (same-origin), the browser never attaches Origin to a
+// same-origin fetch/XHR, so legitimate requests pass through. Only
+// cross-site requests (HTML form POSTs, cross-origin fetch) carry a foreign
+// Origin and will be rejected — preventing login-CSRF and reset-email spam.
 const STATE_CHANGING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
-if (allowedOrigin) {
-  app.use((req: Request, res: Response, next: NextFunction) => {
-    if (!STATE_CHANGING_METHODS.has(req.method)) { next(); return; }
-    const origin = req.headers.origin;
-    if (origin !== undefined && origin !== allowedOrigin) {
-      res.status(403).json({ error: "Forbidden: invalid request origin" });
-      return;
-    }
-    next();
-  });
-}
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (!STATE_CHANGING_METHODS.has(req.method)) { next(); return; }
+  const origin = req.headers.origin;
+  if (origin !== undefined && !allowedOriginsSet.has(origin)) {
+    res.status(403).json({ error: "Forbidden: invalid request origin" });
+    return;
+  }
+  next();
+});
 
 // In production: serve the built React frontend as static files.
 // The frontend is built to artifacts/hireboost-ai/dist/public relative to
@@ -106,7 +143,31 @@ const aiLimiter = rateLimit({
   message: { error: "Too many AI requests, please slow down." },
 });
 
+// Auth rate limit: 10 login/register attempts per 15 minutes per IP.
+// Prevents password spraying and credential-stuffing attacks on the login and
+// registration endpoints without affecting other API routes.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many authentication attempts, please try again later." },
+});
+
+// Password-reset rate limit: 5 requests per hour per IP.
+// Limits reset-email spam against arbitrary addresses.
+const passwordResetLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many password reset requests, please try again later." },
+});
+
 app.use("/api", generalLimiter);
+app.use("/api/auth/login", authLimiter);
+app.use("/api/auth/register", authLimiter);
+app.use("/api/auth/forgot-password", passwordResetLimiter);
 app.use("/api/resume/analyze", aiLimiter);
 app.use("/api/resume/rewrite", aiLimiter);
 app.post("/api/interview/sessions", aiLimiter);

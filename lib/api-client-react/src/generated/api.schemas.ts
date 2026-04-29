@@ -20,6 +20,7 @@ export interface MessageResponse {
 export interface RegisterBody {
   name: string;
   email: string;
+  /** @minLength 8 */
   password: string;
 }
 
@@ -100,6 +101,10 @@ export const CreateInterviewSessionBodyDifficulty = {
 export interface CreateInterviewSessionBody {
   jobRole: string;
   difficulty?: CreateInterviewSessionBodyDifficulty;
+  /**
+   * @minimum 1
+   * @maximum 20
+   */
   questionCount?: number;
 }
 
