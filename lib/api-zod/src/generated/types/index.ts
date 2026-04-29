@@ -8,10 +8,10 @@
 
 export * from "./activityItem";
 export * from "./activityItemType";
-export * from "./analyzeResumeBody";
+export type { AnalyzeResumeBody } from "./analyzeResumeBody";
 export * from "./answerFeedback";
 export * from "./authResponse";
-export * from "./createInterviewSessionBody";
+export type { CreateInterviewSessionBody } from "./createInterviewSessionBody";
 export * from "./createInterviewSessionBodyDifficulty";
 export * from "./dashboardStats";
 export * from "./errorResponse";
@@ -28,6 +28,6 @@ export * from "./resumeAnalysis";
 export * from "./resumeAnalysisSummary";
 export * from "./resumeDailyUsage";
 export * from "./resumeUploadResponse";
-export * from "./submitAnswerBody";
-export * from "./uploadResumeBody";
+export type { SubmitAnswerBody } from "./submitAnswerBody";
+export type { UploadResumeBody } from "./uploadResumeBody";
 export * from "./user";
