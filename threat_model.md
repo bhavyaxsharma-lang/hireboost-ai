@@ -25,20 +25,20 @@ The application handles user accounts, session cookies, uploaded resume content,
 ## Scan Anchors
 
 - **Production entry points:** `artifacts/api-server/src/app.ts`, `artifacts/api-server/src/routes/*.ts`, `artifacts/hireboost-ai/src/App.tsx`, `lib/db/src/schema/*`.
-- **Highest-risk areas:** session/cookie/CORS setup in `artifacts/api-server/src/app.ts`; account recovery in `artifacts/api-server/src/routes/password-reset.ts`; user-scoped data routes in `artifacts/api-server/src/routes/resume.ts`, `interview.ts`, `dashboard.ts`; payment and rewrite-credit logic in `payment.ts` and `resume.ts`; OpenAI-backed endpoints in `resume.ts`, `interview.ts`, `linkedin.ts`, `salary.ts`, and `jd-prep.ts`; file parsing in `parse-file.ts`.
-- **Public surface:** `/api/auth/*`, `/api/health`, and any API route that does not explicitly reject missing sessions. Frontend `ProtectedRoute` pages are not a server-side control and must not be treated as sufficient protection for `/api/resume/parse-file`, `/api/linkedin/*`, or `/api/salary/*`.
-- **Authenticated surface:** dashboard, resume history, rewrite/payment status, interview history, interview session detail/actions, JD prep, LinkedIn generator, and salary-negotiation features.
+- **Highest-risk areas:** session/cookie/CORS and route-level throttling in `artifacts/api-server/src/app.ts`; public auth and recovery flows in `artifacts/api-server/src/routes/auth.ts` and `password-reset.ts`; user-scoped data routes in `resume.ts`, `interview.ts`, `dashboard.ts`; payment and rewrite-credit logic in `payment.ts` and `resume.ts`; OpenAI-backed endpoints in `resume.ts`, `interview.ts`, `linkedin.ts`, `salary.ts`, and `jd-prep.ts`; file parsing in `parse-file.ts`.
+- **Public surface:** `/api/auth/*`, `/api/health`, and any API route that does not explicitly reject missing sessions. Public auth endpoints are state-changing even without an existing session and still need CSRF/origin and abuse controls. Frontend `ProtectedRoute` pages are not a server-side control and must not be treated as sufficient protection for `/api/resume/parse-file`, `/api/linkedin/*`, or `/api/salary/*`.
+- **Authenticated surface:** dashboard, resume history, rewrite/payment status, interview history, interview session detail/actions, JD prep, LinkedIn generator, salary-negotiation features, and upload parsing.
 - **Dev-only:** `artifacts/mockup-sandbox`, `lib/api-spec`, `scripts`.
 
 ## Threat Categories
 
 ### Spoofing
 
-Users authenticate with email/password and a server-side session. All endpoints that return or mutate user data or consume paid backend resources MUST require a valid authenticated session unless they are intentionally public. Session state MUST be bound to the intended user on every request, and account-recovery flows MUST only deliver reset capability to the mailbox owner rather than to the caller of a public endpoint. Third-party payment callbacks or client-submitted payment confirmations MUST be verified before changing credit state.
+Users authenticate with email/password and a server-side session. All endpoints that return or mutate user data or consume paid backend resources MUST require a valid authenticated session unless they are intentionally public. Session state MUST be bound to the intended user on every request, and account-recovery flows MUST only deliver reset capability to the mailbox owner rather than to the caller of a public endpoint. Public auth endpoints that can create or change session state (such as login, registration, and forgot-password) MUST reject cross-site requests even in same-origin production deployments; SameSite cookies alone are not a sufficient control for those flows. Third-party payment callbacks or client-submitted payment confirmations MUST be verified before changing credit state.
 
 ### Tampering
 
-The client can send arbitrary JSON and route parameters regardless of what the frontend UI exposes. The API MUST validate all request bodies and MUST enforce ownership checks before updating interview sessions, payment credits, or stored resume data. Client-supplied business state such as session IDs, question IDs, and rewrite eligibility MUST never be trusted on its own.
+The client can send arbitrary JSON and route parameters regardless of what the frontend UI exposes. The API MUST validate all request bodies and MUST enforce ownership checks before updating interview sessions, payment credits, or stored resume data. Client-supplied business state such as session IDs, question IDs, and rewrite eligibility MUST never be trusted on its own. Payment entitlements MUST be granted only after the server confirms provider-side settlement state, and later refunds or failed captures MUST be reconciled before credits remain usable.
 
 ### Information Disclosure
 
@@ -46,8 +46,8 @@ Resume text, interview answers, job targets, activity history, and account metad
 
 ### Denial of Service
 
-OpenAI-backed analysis, LinkedIn, salary, rewrite, and interview-generation endpoints can create direct financial cost and heavy backend load. These endpoints MUST have strong server-side access control, bounded input sizes, and abuse controls such as per-user or per-IP throttling. File parsing and large prompt construction MUST not allow unauthenticated callers to create a public memory/CPU exhaustion path or unbounded token/database growth.
+OpenAI-backed analysis, LinkedIn, salary, rewrite, and interview-generation endpoints can create direct financial cost and heavy backend load. These endpoints MUST have strong server-side access control, bounded input sizes, and abuse controls such as per-user or per-IP throttling. Route-specific throttles MUST cover all accepted URL variants so alternate slash forms cannot silently fall back to weaker limits. File parsing and large prompt construction MUST not allow callers to create memory/CPU exhaustion through in-memory parser bombs, oversized decompression, or unbounded extracted-text growth.
 
 ### Elevation of Privilege
 
-A regular or unauthenticated caller MUST NOT be able to read or modify another user's records, claim more paid/free entitlements than intended, or invoke protected features simply by calling backend routes directly outside the frontend flow. The backend MUST treat the client as fully untrusted, enforce authorization at every route and object lookup, and make credit-consumption decisions atomically rather than with check-then-act races.
+A regular or unauthenticated caller MUST NOT be able to read or modify another user's records, claim more paid/free entitlements than intended, or invoke protected features simply by calling backend routes directly outside the frontend flow. The backend MUST treat the client as fully untrusted, enforce authorization at every route and object lookup, make credit-consumption decisions atomically rather than with check-then-act races, and resist password-guessing attacks with meaningful server-side password requirements and targeted login throttling.
