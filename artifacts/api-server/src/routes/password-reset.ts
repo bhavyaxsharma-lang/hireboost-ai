@@ -205,4 +205,51 @@ router.get("/verify-reset-token", async (req, res) => {
   }
 });
 
+// POST /auth/direct-reset
+// Accepts { email, newPassword } — resets the password for the matching account.
+// Caller must know the registered email address.
+router.post("/direct-reset", async (req, res) => {
+  const { email, newPassword } = req.body;
+  if (!email || typeof email !== "string") {
+    res.status(400).json({ error: "Email is required" });
+    return;
+  }
+  if (!newPassword || typeof newPassword !== "string") {
+    res.status(400).json({ error: "New password is required" });
+    return;
+  }
+  if (newPassword.length < 8) {
+    res.status(400).json({ error: "Password must be at least 8 characters" });
+    return;
+  }
+
+  try {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, email.toLowerCase().trim()))
+      .limit(1);
+
+    if (!user) {
+      // Return success to avoid email enumeration
+      res.json({ message: "Password updated successfully. You can now log in." });
+      return;
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await db.update(users).set({ passwordHash }).where(eq(users.id, user.id));
+
+    // Revoke all existing sessions
+    await pool.query(
+      `DELETE FROM user_sessions WHERE sess->>'userId' = $1`,
+      [String(user.id)]
+    );
+
+    res.json({ message: "Password updated successfully. You can now log in." });
+  } catch (err) {
+    req.log.error({ err }, "Error in direct password reset");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export default router;
