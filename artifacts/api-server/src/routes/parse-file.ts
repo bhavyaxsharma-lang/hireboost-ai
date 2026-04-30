@@ -253,7 +253,19 @@ const upload = multer({
 // POST /resume/parse-file
 // Accepts multipart/form-data with field "file" (.pdf or .docx only)
 // Returns { text: string, wordCount: number, fileName: string, fileType: string }
-router.post("/parse-file", requireAuth, upload.single("file"), async (req, res) => {
+router.post("/parse-file", requireAuth, (req, res, next) => {
+  upload.single("file")(req, res, (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
+        res.status(400).json({ error: `File is too large. Maximum allowed size is ${MAX_FILE_BYTES / (1024 * 1024)} MB.` });
+        return;
+      }
+      res.status(400).json({ error: err instanceof Error ? err.message : "File upload failed." });
+      return;
+    }
+    next();
+  });
+}, async (req, res) => {
   if (!req.file) {
     res.status(400).json({ error: "No file uploaded." });
     return;

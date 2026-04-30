@@ -577,6 +577,12 @@ function AutoFixButton({
           },
           modal: { ondismiss: () => reject(new Error("cancelled")) },
           theme: { color: "#2E86AB" },
+          config: {
+            display: {
+              hide: [{ method: "upi", flows: ["intent"] }],
+              preferences: { show_default_blocks: true },
+            },
+          },
         });
         rzp.open();
       });
