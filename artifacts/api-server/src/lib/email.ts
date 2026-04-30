@@ -24,7 +24,7 @@ export async function sendPasswordResetEmail(opts: {
   }
 
   const fromAddress =
-    process.env.EMAIL_FROM ?? "HireBoost AI <noreply@hireboost.ai>";
+    process.env.EMAIL_FROM ?? "HireBoost AI <onboarding@resend.dev>";
 
   const html = `
     <div style="font-family:sans-serif;max-width:480px;margin:0 auto">

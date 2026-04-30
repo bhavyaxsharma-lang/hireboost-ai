@@ -53,4 +53,6 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.production]
+
+[userenv.shared]
 APP_ORIGIN = "https://link-career-navigator-bhavyaxsharma.replit.app"
