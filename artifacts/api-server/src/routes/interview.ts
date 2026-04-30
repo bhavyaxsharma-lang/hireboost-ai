@@ -1,7 +1,7 @@
 // Interview session routes
 import { Router } from "express";
 import { db, interviewSessions, interviewQuestions } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, isNull, and } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import {
   CreateInterviewSessionBody,
@@ -213,6 +213,12 @@ router.post("/sessions/:id/answer", async (req, res) => {
   const { questionId, answer } = bodyResult.data;
   const sessionId = paramsResult.data.id;
 
+  // Reserved server-internal marker used to atomically claim a question row
+  // before calling OpenAI. Declared outside try/catch so both blocks can
+  // reference it. Never stored permanently — overwritten by the real answer
+  // on success, or cleared back to NULL on failure.
+  const SENTINEL = "__EVALUATING__";
+
   try {
     // Verify session ownership before allowing writes
     const [sessionOwner] = await db.select({ userId: interviewSessions.userId }).from(interviewSessions).where(eq(interviewSessions.id, sessionId)).limit(1);
@@ -225,17 +231,24 @@ router.post("/sessions/:id/answer", async (req, res) => {
       return;
     }
 
-    // Get the question
+    // Verify the question exists and belongs to this session
     const [question] = await db.select().from(interviewQuestions).where(eq(interviewQuestions.id, questionId)).limit(1);
     if (!question || question.sessionId !== sessionId) {
       res.status(404).json({ error: "Question not found" });
       return;
     }
 
-    // Prevent re-evaluation of an already-answered question. Without this guard
-    // an attacker could loop submissions to the same questionId and drive
-    // unbounded AI spend even if the AI rate limiter is bypassed.
-    if (question.userAnswer !== null) {
+    // Atomically claim the question before calling OpenAI to prevent TOCTOU races.
+    // The UPDATE only succeeds when user_answer IS NULL; any concurrent request
+    // that already set it (to the sentinel or a real answer) returns 0 rows and
+    // gets a 409 without triggering any AI spend.
+    const claimed = await db
+      .update(interviewQuestions)
+      .set({ userAnswer: SENTINEL })
+      .where(and(eq(interviewQuestions.id, questionId), isNull(interviewQuestions.userAnswer)))
+      .returning({ id: interviewQuestions.id });
+
+    if (claimed.length === 0) {
       res.status(409).json({ error: "This question has already been answered." });
       return;
     }
@@ -306,6 +319,12 @@ Return ONLY valid JSON with exactly these fields:
     });
   } catch (err) {
     req.log.error({ err }, "Error submitting answer");
+    // Reset the sentinel so the user can retry — the claim was not yet finalised.
+    await db
+      .update(interviewQuestions)
+      .set({ userAnswer: null })
+      .where(and(eq(interviewQuestions.id, questionId), eq(interviewQuestions.userAnswer, SENTINEL)))
+      .catch((resetErr) => req.log.error({ resetErr }, "Failed to reset question sentinel after error"));
     res.status(500).json({ error: "Failed to evaluate answer" });
   }
 });

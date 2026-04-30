@@ -237,6 +237,29 @@ app.use(
   }),
 );
 
+// Per-user AI rate limit: 10 requests per minute per authenticated user.
+// This runs AFTER session middleware so req.session.userId is available.
+// Combined with the IP-based aiLimiter above, an attacker cannot bypass the
+// cap simply by rotating source IPs — every session identity is tracked
+// independently as well.
+const userAiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => `user:${(req.session as { userId?: number } | undefined)?.userId ?? req.ip ?? "anon"}`,
+  message: { error: "Too many AI requests, please slow down." },
+});
+
+app.use("/api/resume/analyze", userAiLimiter);
+app.use("/api/resume/rewrite", userAiLimiter);
+app.post("/api/interview/sessions", userAiLimiter);
+app.post(/^\/api\/interview\/sessions\/\d+\/answer\/?$/, userAiLimiter);
+app.post("/api/interview/jd-prep", userAiLimiter);
+app.post("/api/linkedin/generate", userAiLimiter);
+app.post("/api/linkedin/make-viral", userAiLimiter);
+app.post("/api/salary/generate", userAiLimiter);
+
 app.use("/api", router);
 
 // In production: SPA fallback — serve index.html for all non-API routes so

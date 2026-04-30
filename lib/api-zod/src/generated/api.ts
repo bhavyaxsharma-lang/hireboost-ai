@@ -77,10 +77,14 @@ export const UploadResumeResponse = zod.object({
 /**
  * @summary Analyze resume with AI and get ATS score
  */
+export const analyzeResumeBodyResumeTextMax = 15_000;
+export const analyzeResumeBodyJobTitleMax = 200;
+export const analyzeResumeBodyJobDescriptionMax = 5_000;
+
 export const AnalyzeResumeBody = zod.object({
-  resumeText: zod.string(),
-  jobTitle: zod.string().nullish(),
-  jobDescription: zod.string().nullish(),
+  resumeText: zod.string().max(analyzeResumeBodyResumeTextMax),
+  jobTitle: zod.string().max(analyzeResumeBodyJobTitleMax).nullish(),
+  jobDescription: zod.string().max(analyzeResumeBodyJobDescriptionMax).nullish(),
 });
 
 export const AnalyzeResumeResponse = zod.object({
@@ -159,9 +163,10 @@ export const ListInterviewSessionsResponse = zod.array(
  * @summary Create a new interview session and generate questions
  */
 export const createInterviewSessionBodyQuestionCountMax = 20;
+export const createInterviewSessionBodyJobRoleMax = 200;
 
 export const CreateInterviewSessionBody = zod.object({
-  jobRole: zod.string(),
+  jobRole: zod.string().max(createInterviewSessionBodyJobRoleMax),
   difficulty: zod.enum(["easy", "medium", "hard"]).optional(),
   questionCount: zod
     .number()

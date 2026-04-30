@@ -19,6 +19,9 @@ router.post("/jd-prep", async (req, res) => {
     return;
   }
 
+  // Hard-cap the JD to prevent near-limit prompt payloads from inflating token usage.
+  const safeJobDescription = jobDescription.trim().slice(0, 10_000);
+
   const count = Math.min(Math.max(Number(questionCount) || 8, 3), 15);
 
   try {
@@ -26,7 +29,7 @@ router.post("/jd-prep", async (req, res) => {
 
 JOB DESCRIPTION:
 """
-${jobDescription.trim()}
+${safeJobDescription}
 """
 
 Return ONLY valid JSON in this exact structure:

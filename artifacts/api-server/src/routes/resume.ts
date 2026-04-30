@@ -372,19 +372,29 @@ router.post("/rewrite", async (req, res) => {
     claimedPaymentId = unusedPayment.id;
   }
 
+  // Truncate all caller-controlled strings before embedding them in the prompt.
+  // The /rewrite route does not use a Zod schema, so these bounds are enforced
+  // here as a server-side trust-boundary before the OpenAI call.
+  const safeResumeText = resumeText.slice(0, 15_000);
+  const safeKeywords = (missingKeywords ?? []).slice(0, 20).map((k) => String(k).slice(0, 100));
+  const safeSuggestions = (suggestions ?? []).slice(0, 10).map((s) => String(s).slice(0, 300));
+  const safeStrengths = (strengths ?? []).slice(0, 10).map((s) => String(s).slice(0, 300));
+  const safeOverallFeedback = String(overallFeedback ?? "N/A").slice(0, 1_000);
+  const safeJobTitle = String(jobTitle ?? "").slice(0, 200);
+
   const prompt = `You are an expert resume writer and career coach. Rewrite and significantly improve the following resume.
 
 CURRENT RESUME:
-${resumeText}
+${safeResumeText}
 
 ANALYSIS FINDINGS:
 - ATS Score: ${atsScore ?? "N/A"}/100
-- Missing Keywords to Add: ${(missingKeywords ?? []).join(", ")}
+- Missing Keywords to Add: ${safeKeywords.join(", ")}
 - Key Improvements Needed:
-${(suggestions ?? []).map((s, i) => `${i + 1}. ${s}`).join("\n")}
-- Existing Strengths to Preserve: ${(strengths ?? []).join(", ")}
-- Overall Feedback: ${overallFeedback ?? "N/A"}
-${jobTitle ? `- Target Role: ${jobTitle}` : ""}
+${safeSuggestions.map((s, i) => `${i + 1}. ${s}`).join("\n")}
+- Existing Strengths to Preserve: ${safeStrengths.join(", ")}
+- Overall Feedback: ${safeOverallFeedback}
+${safeJobTitle ? `- Target Role: ${safeJobTitle}` : ""}
 
 INSTRUCTIONS:
 1. Rewrite the entire resume addressing ALL missing keywords and suggestions.
