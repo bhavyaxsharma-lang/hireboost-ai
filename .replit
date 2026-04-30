@@ -32,6 +32,10 @@ localPort = 8082
 externalPort = 3000
 
 [[ports]]
+localPort = 8083
+externalPort = 3003
+
+[[ports]]
 localPort = 22412
 externalPort = 3001
 
@@ -39,5 +43,14 @@ externalPort = 3001
 localPort = 22413
 externalPort = 80
 
+[[ports]]
+localPort = 22414
+externalPort = 3002
+
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.production]
+APP_ORIGIN = "https://link-career-navigator-bhavyaxsharma.replit.app"
