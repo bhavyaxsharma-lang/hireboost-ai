@@ -557,6 +557,8 @@ function AutoFixButton({
         orderId: string; amount: number; currency: string; keyId: string;
       };
 
+      const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
       await new Promise<void>((resolve, reject) => {
         const rzp = new window.Razorpay({
           key: keyId,
@@ -577,12 +579,17 @@ function AutoFixButton({
           },
           modal: { ondismiss: () => reject(new Error("cancelled")) },
           theme: { color: "#2E86AB" },
-          config: {
-            display: {
-              hide: [{ method: "upi", flows: ["intent"] }],
-              preferences: { show_default_blocks: true },
+          // On desktop hide UPI app-intents (Google Pay redirect) since browsers
+          // can't launch payment apps — show QR + UPI ID entry instead.
+          // On mobile keep intents enabled so installed UPI apps open directly.
+          ...(!isMobile && {
+            config: {
+              display: {
+                hide: [{ method: "upi", flows: ["intent"] }],
+                preferences: { show_default_blocks: true },
+              },
             },
-          },
+          }),
         });
         rzp.open();
       });

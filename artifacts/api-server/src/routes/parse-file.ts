@@ -95,9 +95,8 @@ function pdfParseInWorker(
 
 const router = Router();
 
-// Maximum file size accepted (4 MB). Reduces the per-request memory allocation
-// ceiling and makes parser-bomb attacks more expensive to sustain.
-const MAX_FILE_BYTES = 4 * 1024 * 1024;
+// Maximum file size accepted (10 MB).
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 // Maximum length of extracted text returned to callers. Prevents a legitimate
 // but oversized document from producing an unbounded response and consuming
@@ -111,14 +110,22 @@ const MAX_PDF_PAGES = 50;
 // Magic-byte signatures for the file formats we accept.
 // These are checked against the actual file content rather than the
 // client-supplied MIME type, which is trivially spoofable.
-function detectFileType(buf: Buffer): "pdf" | "docx" | null {
+function detectFileType(buf: Buffer): "pdf" | "docx" | "doc" | null {
   // PDF: starts with "%PDF"
   if (buf.length >= 4 && buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46) {
     return "pdf";
   }
-  // DOCX/DOC (ZIP-based): starts with PK\x03\x04
+  // DOCX (ZIP-based): starts with PK\x03\x04
   if (buf.length >= 4 && buf[0] === 0x50 && buf[1] === 0x4b && buf[2] === 0x03 && buf[3] === 0x04) {
     return "docx";
+  }
+  // DOC (Compound File Binary Format): starts with D0 CF 11 E0 A1 B1 1A E1
+  if (
+    buf.length >= 8 &&
+    buf[0] === 0xd0 && buf[1] === 0xcf && buf[2] === 0x11 && buf[3] === 0xe0 &&
+    buf[4] === 0xa1 && buf[5] === 0xb1 && buf[6] === 0x1a && buf[7] === 0xe1
+  ) {
+    return "doc";
   }
   return null;
 }
@@ -235,17 +242,16 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_FILE_BYTES },
   fileFilter(_req, file, cb) {
-    // Only accept PDF and DOCX (OpenXML). Legacy binary .doc is NOT accepted
-    // because it uses a different container format (CFDF) that our magic-byte
-    // and ZIP-structure checks cannot validate and mammoth handles poorly.
     const allowed = [
       "application/pdf",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/msword",
     ];
-    if (allowed.includes(file.mimetype)) {
+    const nameOk = /\.(pdf|docx|doc)$/i.test(file.originalname);
+    if (allowed.includes(file.mimetype) || nameOk) {
       cb(null, true);
     } else {
-      cb(new Error("Only PDF and Word documents (.pdf, .docx) are supported."));
+      cb(new Error("Only PDF and Word documents (.pdf, .docx, .doc) are supported."));
     }
   },
 });
@@ -276,7 +282,7 @@ router.post("/parse-file", requireAuth, (req, res, next) => {
   // Validate file content via magic bytes — never trust the client-supplied MIME type.
   const detectedType = detectFileType(buffer);
   if (!detectedType) {
-    res.status(400).json({ error: "Only PDF and Word documents (.pdf, .docx) are supported." });
+    res.status(400).json({ error: "Only PDF and Word documents (.pdf, .docx, .doc) are supported." });
     return;
   }
 
@@ -284,13 +290,6 @@ router.post("/parse-file", requireAuth, (req, res, next) => {
     let extractedText = "";
 
     if (detectedType === "pdf") {
-      // Parse inside an isolated Worker thread with a hard timeout.
-      // If the Worker does not respond within PDF_PARSE_TIMEOUT_MS, it is
-      // forcibly terminated via worker.terminate(), which immediately reclaims
-      // all CPU and memory — regardless of what the PDF contains.  This is a
-      // true hard limit, unlike Promise.race which leaves the parse running in
-      // the background.  Page-count enforcement happens after the worker
-      // returns because the worker has the authoritative numpages value.
       let data: { text: string; numpages: number };
       try {
         data = await pdfParseInWorker(buffer);
@@ -307,7 +306,7 @@ router.post("/parse-file", requireAuth, (req, res, next) => {
         return;
       }
       extractedText = data.text;
-    } else {
+    } else if (detectedType === "docx") {
       // Validate the ZIP/DOCX structure before handing to mammoth.
       // This catches ZIP bombs (entry count, uncompressed size, ratio) and
       // ensures the archive is a valid DOCX rather than an arbitrary payload.
@@ -316,6 +315,10 @@ router.post("/parse-file", requireAuth, (req, res, next) => {
         res.status(400).json({ error: "The uploaded file is not a valid Word document or failed safety checks." });
         return;
       }
+      const result = await mammoth.extractRawText({ buffer });
+      extractedText = result.value;
+    } else {
+      // Legacy .doc (Compound File Binary Format) — mammoth handles these directly.
       const result = await mammoth.extractRawText({ buffer });
       extractedText = result.value;
     }

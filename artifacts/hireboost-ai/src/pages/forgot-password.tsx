@@ -5,31 +5,43 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
-import { Loader2, ArrowLeft, Mail } from "lucide-react";
+import { Loader2, ArrowLeft, KeyRound, Eye, EyeOff } from "lucide-react";
 
 export default function ForgotPassword() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
   const [email, setEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [done, setDone] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      toast({ title: "Passwords don't match", description: "Please make sure both password fields are identical.", variant: "destructive" });
+      return;
+    }
+    if (newPassword.length < 8) {
+      toast({ title: "Password too short", description: "Password must be at least 8 characters.", variant: "destructive" });
+      return;
+    }
     setIsLoading(true);
     try {
-      const res = await fetch("/api/auth/forgot-password", {
+      const res = await fetch("/api/auth/direct-reset", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, newPassword }),
       });
-      const data = await res.json();
+      const data = await res.json() as { message?: string; error?: string };
       if (!res.ok) {
-        toast({ title: "Error", description: data.error || "Something went wrong.", variant: "destructive" });
+        toast({ title: "Error", description: data.error ?? "Something went wrong.", variant: "destructive" });
         return;
       }
-      setSubmitted(true);
+      setDone(true);
     } catch {
       toast({ title: "Network error", description: "Could not connect. Please try again.", variant: "destructive" });
     } finally {
@@ -55,15 +67,15 @@ export default function ForgotPassword() {
 
         <div className="mb-8">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 mb-4">
-            <Mail className="h-6 w-6 text-primary" />
+            <KeyRound className="h-6 w-6 text-primary" />
           </div>
-          <h1 className="text-2xl font-extrabold tracking-tight">Forgot your password?</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight">Reset your password</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Enter your email and we'll send you a reset link.
+            Enter your email and choose a new password instantly.
           </p>
         </div>
 
-        {!submitted ? (
+        {!done ? (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="email">Email address</Label>
@@ -78,9 +90,58 @@ export default function ForgotPassword() {
                 className="h-11"
               />
             </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="new-password">New password</Label>
+              <div className="relative">
+                <Input
+                  id="new-password"
+                  type={showNew ? "text" : "password"}
+                  placeholder="At least 8 characters"
+                  required
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  disabled={isLoading}
+                  className="h-11 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNew((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  tabIndex={-1}
+                >
+                  {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="confirm-password">Confirm new password</Label>
+              <div className="relative">
+                <Input
+                  id="confirm-password"
+                  type={showConfirm ? "text" : "password"}
+                  placeholder="Repeat your new password"
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  disabled={isLoading}
+                  className="h-11 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  tabIndex={-1}
+                >
+                  {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
             <Button type="submit" className="w-full h-11 font-bold" disabled={isLoading}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Send Reset Link
+              Reset Password
             </Button>
           </form>
         ) : (
@@ -90,17 +151,13 @@ export default function ForgotPassword() {
             className="space-y-4"
           >
             <div className="rounded-xl border border-border bg-muted/40 p-4 space-y-2 text-center">
-              <p className="text-sm font-medium text-foreground">Check your inbox</p>
+              <p className="text-sm font-medium text-foreground">Password updated!</p>
               <p className="text-sm text-muted-foreground">
-                If <span className="font-semibold">{email}</span> is registered, we've sent a password reset link to that address. The link expires in 1 hour.
+                Your password has been reset. You can now log in with your new password.
               </p>
             </div>
-            <Button
-              variant="link"
-              className="w-full text-primary"
-              onClick={() => setLocation("/auth")}
-            >
-              Back to login
+            <Button className="w-full h-11 font-bold" onClick={() => setLocation("/auth")}>
+              Go to login
             </Button>
           </motion.div>
         )}

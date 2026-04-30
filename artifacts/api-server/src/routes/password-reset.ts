@@ -205,4 +205,52 @@ router.get("/verify-reset-token", async (req, res) => {
   }
 });
 
+// POST /auth/direct-reset
+// Accepts { email, newPassword } — resets password directly without an email token.
+// Anyone who knows a registered email address can reset that account's password.
+// This is intentionally simpler than the token flow for ease of use.
+router.post("/direct-reset", async (req, res) => {
+  const { email, newPassword } = req.body;
+  if (!email || typeof email !== "string") {
+    res.status(400).json({ error: "Email is required" });
+    return;
+  }
+  if (!newPassword || typeof newPassword !== "string") {
+    res.status(400).json({ error: "New password is required" });
+    return;
+  }
+  if (newPassword.length < 8) {
+    res.status(400).json({ error: "Password must be at least 8 characters" });
+    return;
+  }
+
+  try {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, email.toLowerCase().trim()))
+      .limit(1);
+
+    // Always return success to prevent email enumeration
+    if (!user) {
+      res.json({ message: "If that email is registered, your password has been updated." });
+      return;
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await db.update(users).set({ passwordHash }).where(eq(users.id, user.id));
+
+    // Revoke all existing sessions
+    await pool.query(
+      `DELETE FROM user_sessions WHERE sess->>'userId' = $1`,
+      [String(user.id)]
+    );
+
+    res.json({ message: "Password updated successfully. You can now log in." });
+  } catch (err) {
+    req.log.error({ err }, "Error in direct password reset");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export default router;
