@@ -3,7 +3,7 @@ import cors from "cors";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import pinoHttp from "pino-http";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import path from "path";
 import fs from "fs";
 import router from "./routes";
@@ -247,7 +247,10 @@ const userAiLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => `user:${(req.session as { userId?: number } | undefined)?.userId ?? req.ip ?? "anon"}`,
+  keyGenerator: (req) => {
+    const userId = (req.session as { userId?: number } | undefined)?.userId;
+    return userId ? `user:${userId}` : `ip:${ipKeyGenerator(req)}`;
+  },
   message: { error: "Too many AI requests, please slow down." },
 });
 
