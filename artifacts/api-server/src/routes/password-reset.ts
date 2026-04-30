@@ -52,10 +52,20 @@ router.post("/forgot-password", async (req, res) => {
     const token = crypto.randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
 
-    await db.insert(passwordResetTokens).values({
-      userId: user.id,
-      token,
-      expiresAt,
+    // Revoke all prior unused reset tokens for this user and insert the new
+    // one in a single transaction. Doing this atomically prevents a race where
+    // two concurrent forgot-password requests could both see zero active tokens
+    // and each insert a new one, leaving two live tokens in the database.
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(passwordResetTokens)
+        .where(and(eq(passwordResetTokens.userId, user.id), isNull(passwordResetTokens.usedAt)));
+
+      await tx.insert(passwordResetTokens).values({
+        userId: user.id,
+        token,
+        expiresAt,
+      });
     });
 
     // Build the reset URL from trusted server-side configuration only.
@@ -125,11 +135,24 @@ router.post("/reset-password", async (req, res) => {
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
 
-    // Update password and mark token as used in parallel
-    await Promise.all([
-      db.update(users).set({ passwordHash }).where(eq(users.id, resetRecord.userId)),
-      db.update(passwordResetTokens).set({ usedAt: now }).where(eq(passwordResetTokens.id, resetRecord.id)),
-    ]);
+    // Update password and invalidate ALL unused reset tokens for this user in
+    // a single transaction. Doing this atomically ensures that if either
+    // operation fails, neither takes effect — preventing a state where the
+    // password is changed but tokens remain live (or vice-versa). Revoking by
+    // userId rather than just the presented token id closes any concurrent
+    // reset replay window.
+    await db.transaction(async (tx) => {
+      await tx.update(users).set({ passwordHash }).where(eq(users.id, resetRecord.userId));
+      await tx
+        .update(passwordResetTokens)
+        .set({ usedAt: now })
+        .where(
+          and(
+            eq(passwordResetTokens.userId, resetRecord.userId),
+            isNull(passwordResetTokens.usedAt)
+          )
+        );
+    });
 
     // Revoke all existing sessions for this user so that any previously stolen
     // session cookie cannot be reused after the password is changed. The
