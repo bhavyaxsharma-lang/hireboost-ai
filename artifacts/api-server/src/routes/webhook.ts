@@ -72,6 +72,11 @@ type RazorpayPaymentEntity = {
   status?: string;
 };
 
+type RazorpayRefundEntity = {
+  id?: string;
+  payment_id?: string;
+};
+
 type RazorpayDisputeEntity = {
   payment_id?: string;
 };
@@ -88,10 +93,13 @@ async function handleEvent(event: { event: string; payload?: Record<string, unkn
       break;
     }
 
-    case "payment.refunded": {
-      const payment = (event.payload?.payment as { entity?: RazorpayPaymentEntity } | undefined)?.entity;
-      if (!payment?.order_id) break;
-      await markPaymentByOrderId(payment.order_id, "refunded");
+    case "refund.created":
+    case "refund.processed": {
+      // Razorpay refund events carry a `refund` entity (not a `payment` entity).
+      // The refund entity's `payment_id` links back to the original payment.
+      const refund = (event.payload?.refund as { entity?: RazorpayRefundEntity } | undefined)?.entity;
+      if (!refund?.payment_id) break;
+      await markPaymentByPaymentId(refund.payment_id, "refunded");
       break;
     }
 
