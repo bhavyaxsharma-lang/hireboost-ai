@@ -15,10 +15,14 @@ async function buildAll() {
   await rm(distDir, { recursive: true, force: true });
 
   await esbuild({
-    entryPoints: [path.resolve(artifactDir, "src/index.ts")],
+    entryPoints: [
+      path.resolve(artifactDir, "src/index.ts"),
+      path.resolve(artifactDir, "src/workers/pdf-parse-worker.ts"),
+    ],
     platform: "node",
     bundle: true,
     format: "esm",
+    outbase: path.resolve(artifactDir, "src"),
     outdir: distDir,
     outExtension: { ".js": ".mjs" },
     logLevel: "info",

@@ -1,24 +1,97 @@
 // File upload + text extraction route
 import { Router } from "express";
 import multer from "multer";
+import { Worker } from "node:worker_threads";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { requireAuth } from "../middleware/requireAuth";
 import { createRequire } from "node:module";
 
-// pdf-parse (v1.x) and mammoth are CJS-only — use createRequire so the
-// externalized modules resolve correctly at runtime from the bundle location.
+// mammoth is CJS-only — use createRequire so the externalized module resolves
+// correctly at runtime from the bundle location.
 const _require = createRequire(import.meta.url);
-
-// pdf-parse v1.x: module.exports is the parse function directly.
-// Guard with .default fallback for any bundler-wrapping edge case.
-const _pdfMod = _require("pdf-parse");
-const pdfParse = (typeof _pdfMod === "function" ? _pdfMod : _pdfMod.default) as (
-  buffer: Buffer
-) => Promise<{ text: string; numpages: number }>;
 
 // mammoth: module.exports is the mammoth object with extractRawText, etc.
 const mammoth = _require("mammoth") as {
   extractRawText: (opts: { buffer: Buffer }) => Promise<{ value: string; messages: unknown[] }>;
 };
+
+// Path to the compiled PDF worker bundle.  The worker is a separate esbuild
+// entry point so it runs in an isolated Node.js Worker thread and can be
+// hard-terminated on timeout — releasing all CPU and memory immediately.
+const PDF_WORKER_PATH = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "workers",
+  "pdf-parse-worker.mjs"
+);
+
+// Validate the worker bundle exists at startup so packaging drift is caught
+// early (e.g. if a build step omits the workers/ output directory).
+import { existsSync } from "node:fs";
+if (!existsSync(PDF_WORKER_PATH)) {
+  throw new Error(
+    `PDF worker bundle not found at ${PDF_WORKER_PATH}. ` +
+    "Run 'pnpm run build' to regenerate the dist/ directory."
+  );
+}
+
+// Hard wall-clock limit for a single PDF parse.  If pdf-parse has not
+// responded within this window the Worker is terminated unconditionally,
+// reclaiming its memory and CPU regardless of what the PDF contains.
+// Configurable via PDF_PARSE_TIMEOUT_MS env var for production tuning
+// (e.g. larger instances may allow a longer window without risk).
+// NOTE: This is a containment / defense-in-depth strategy.  The page-count
+// guard (MAX_PDF_PAGES) still runs after the worker returns, but the primary
+// protection against resource exhaustion is the hard per-parse timeout —
+// it bounds CPU and memory burn for any pathological PDF regardless of page
+// structure or compression encoding.
+const PDF_PARSE_TIMEOUT_MS = parseInt(
+  process.env["PDF_PARSE_TIMEOUT_MS"] ?? "10000",
+  10
+);
+
+/**
+ * Parse a PDF buffer in a dedicated Worker thread.
+ *
+ * Spawning a Worker means the main event loop is never blocked, and —
+ * crucially — calling worker.terminate() will forcibly destroy the thread and
+ * free all its resources.  This makes the timeout a true hard limit rather
+ * than a best-effort Promise.race that leaves background work running.
+ */
+function pdfParseInWorker(
+  buf: Buffer
+): Promise<{ text: string; numpages: number }> {
+  return new Promise((resolve, reject) => {
+    // Transfer ownership of the underlying ArrayBuffer to the worker
+    // (zero-copy).  After transfer, `buf` must not be accessed here.
+    const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+
+    const worker = new Worker(PDF_WORKER_PATH, {
+      workerData: { buffer: ab },
+      transferList: [ab as ArrayBuffer],
+    });
+
+    const timer = setTimeout(() => {
+      worker.terminate();
+      reject(new Error("PDF parsing timed out"));
+    }, PDF_PARSE_TIMEOUT_MS);
+
+    worker.on("message", (msg: { ok: boolean; text?: string; numpages?: number; error?: string }) => {
+      clearTimeout(timer);
+      void worker.terminate();
+      if (msg.ok) {
+        resolve({ text: msg.text ?? "", numpages: msg.numpages ?? 0 });
+      } else {
+        reject(new Error(msg.error ?? "PDF parsing failed"));
+      }
+    });
+
+    worker.on("error", (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+  });
+}
 
 const router = Router();
 
@@ -199,8 +272,24 @@ router.post("/parse-file", requireAuth, upload.single("file"), async (req, res) 
     let extractedText = "";
 
     if (detectedType === "pdf") {
-      const data = await pdfParse(buffer);
-      // Enforce a page-count ceiling to prevent multi-thousand-page parser bombs.
+      // Parse inside an isolated Worker thread with a hard timeout.
+      // If the Worker does not respond within PDF_PARSE_TIMEOUT_MS, it is
+      // forcibly terminated via worker.terminate(), which immediately reclaims
+      // all CPU and memory — regardless of what the PDF contains.  This is a
+      // true hard limit, unlike Promise.race which leaves the parse running in
+      // the background.  Page-count enforcement happens after the worker
+      // returns because the worker has the authoritative numpages value.
+      let data: { text: string; numpages: number };
+      try {
+        data = await pdfParseInWorker(buffer);
+      } catch (workerErr: unknown) {
+        const msg = workerErr instanceof Error ? workerErr.message : String(workerErr);
+        if (msg === "PDF parsing timed out") {
+          res.status(400).json({ error: "PDF processing exceeded the time limit. Please upload a simpler document." });
+          return;
+        }
+        throw workerErr;
+      }
       if (data.numpages > MAX_PDF_PAGES) {
         res.status(400).json({ error: `PDF must not exceed ${MAX_PDF_PAGES} pages.` });
         return;
