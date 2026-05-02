@@ -166,14 +166,9 @@ router.get("/sessions/:id", async (req, res) => {
   }
 
   try {
-    const [session] = await db.select().from(interviewSessions).where(eq(interviewSessions.id, parseResult.data.id)).limit(1);
+    const [session] = await db.select().from(interviewSessions).where(and(eq(interviewSessions.id, parseResult.data.id), eq(interviewSessions.userId, userId))).limit(1);
     if (!session) {
       res.status(404).json({ error: "Session not found" });
-      return;
-    }
-
-    if (session.userId !== userId) {
-      res.status(403).json({ error: "Forbidden" });
       return;
     }
 
@@ -221,13 +216,9 @@ router.post("/sessions/:id/answer", async (req, res) => {
 
   try {
     // Verify session ownership before allowing writes
-    const [sessionOwner] = await db.select({ userId: interviewSessions.userId }).from(interviewSessions).where(eq(interviewSessions.id, sessionId)).limit(1);
+    const [sessionOwner] = await db.select({ userId: interviewSessions.userId }).from(interviewSessions).where(and(eq(interviewSessions.id, sessionId), eq(interviewSessions.userId, userId))).limit(1);
     if (!sessionOwner) {
       res.status(404).json({ error: "Session not found" });
-      return;
-    }
-    if (sessionOwner.userId !== userId) {
-      res.status(403).json({ error: "Forbidden" });
       return;
     }
 
@@ -344,14 +335,9 @@ router.post("/sessions/:id/complete", async (req, res) => {
   }
 
   try {
-    const [session] = await db.select().from(interviewSessions).where(eq(interviewSessions.id, parseResult.data.id)).limit(1);
+    const [session] = await db.select().from(interviewSessions).where(and(eq(interviewSessions.id, parseResult.data.id), eq(interviewSessions.userId, userId))).limit(1);
     if (!session) {
       res.status(404).json({ error: "Session not found" });
-      return;
-    }
-
-    if (session.userId !== userId) {
-      res.status(403).json({ error: "Forbidden" });
       return;
     }
 

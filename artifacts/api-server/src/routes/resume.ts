@@ -215,14 +215,9 @@ router.get("/history/:id", async (req, res) => {
   }
 
   try {
-    const [analysis] = await db.select().from(resumeAnalyses).where(eq(resumeAnalyses.id, parseResult.data.id)).limit(1);
+    const [analysis] = await db.select().from(resumeAnalyses).where(and(eq(resumeAnalyses.id, parseResult.data.id), eq(resumeAnalyses.userId, userId))).limit(1);
     if (!analysis) {
       res.status(404).json({ error: "Analysis not found" });
-      return;
-    }
-
-    if (analysis.userId !== userId) {
-      res.status(403).json({ error: "Forbidden" });
       return;
     }
 
