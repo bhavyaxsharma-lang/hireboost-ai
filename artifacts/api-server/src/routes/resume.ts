@@ -7,7 +7,7 @@ import { UploadResumeBody, AnalyzeResumeBody, GetResumeAnalysisParams } from "@w
 
 const router = Router();
 
-const FREE_REWRITE_LIMIT = 2;
+const FREE_REWRITE_LIMIT = 1;
 
 // Helper: count total free rewrites used by a user (lifetime)
 async function getFreeRewriteCount(userId: number): Promise<number> {
@@ -244,7 +244,7 @@ router.get("/history/:id", async (req, res) => {
   }
 });
 
-// POST /resume/rewrite — AI rewrite (2 free lifetime, then ₹100 per rewrite)
+// POST /resume/rewrite — AI rewrite (1 free lifetime, then ₹99 per rewrite)
 router.post("/rewrite", async (req, res) => {
   const userId = req.session?.userId ?? null;
   if (!userId) {
@@ -322,7 +322,7 @@ router.post("/rewrite", async (req, res) => {
       if (!unusedPayment) {
         res.status(402).json({
           error: "payment_required",
-          message: "You have used your 2 free resume rewrites. Please pay ₹100 to continue.",
+          message: "You have used your 1 free resume rewrite. Please pay ₹99 to continue.",
           freeUsed: FREE_REWRITE_LIMIT,
           freeLimit: FREE_REWRITE_LIMIT,
         });
@@ -335,7 +335,7 @@ router.post("/rewrite", async (req, res) => {
       if ((updated.rowCount ?? 0) === 0) {
         res.status(402).json({
           error: "payment_required",
-          message: "You have used your 2 free resume rewrites. Please pay ₹100 to continue.",
+          message: "You have used your 1 free resume rewrite. Please pay ₹99 to continue.",
           freeUsed: FREE_REWRITE_LIMIT,
           freeLimit: FREE_REWRITE_LIMIT,
         });
@@ -349,7 +349,7 @@ router.post("/rewrite", async (req, res) => {
     if (!unusedPayment) {
       res.status(402).json({
         error: "payment_required",
-        message: "You have used your 2 free resume rewrites. Please pay ₹100 to continue.",
+        message: "You have used your 1 free resume rewrite. Please pay ₹99 to continue.",
         freeUsed: freeUsedApprox,
         freeLimit: FREE_REWRITE_LIMIT,
       });
@@ -363,7 +363,7 @@ router.post("/rewrite", async (req, res) => {
     if ((updated.rowCount ?? 0) === 0) {
       res.status(402).json({
         error: "payment_required",
-        message: "You have used your 2 free resume rewrites. Please pay ₹100 to continue.",
+        message: "You have used your 1 free resume rewrite. Please pay ₹99 to continue.",
         freeUsed: freeUsedApprox,
         freeLimit: FREE_REWRITE_LIMIT,
       });

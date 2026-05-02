@@ -28,7 +28,7 @@ Full-stack AI-powered web app for resume analysis and mock interview coaching. M
 5. **Salary Negotiation Tool** — Input current/offered/target salary + role + experience, get AI-generated verbal counter script, HR email, market insight, and negotiation tips
 6. **Dashboard** — Overview of scores, stats, and recent activity
 7. **History** — Past resume analyses and interview sessions
-8. **Razorpay Payments** — 2 free resume rewrites lifetime, then ₹100/rewrite via Razorpay
+8. **Razorpay Payments** — 1 free resume rewrite lifetime, then ₹99/rewrite via Razorpay (Android WebView + UPI intents supported)
 9. **Dark/Light mode** — System-aware theme toggle
 
 ## DB Tables

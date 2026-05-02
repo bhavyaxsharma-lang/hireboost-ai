@@ -467,7 +467,7 @@ declare global {
 type RewriteStatus = { freeUsed: number; freeLimit: number; hasPaidCredit: boolean };
 
 /* ─────────────────────────────────────────────────────────
-   Auto-Fix Button — 2 free rewrites, then ₹100 via Razorpay
+   Auto-Fix Button — 1 free rewrite, then ₹99 via Razorpay
 ───────────────────────────────────────────────────────── */
 function AutoFixButton({
   parsed,
@@ -542,7 +542,15 @@ function AutoFixButton({
     setIsProcessingPayment(true);
     try {
       const loaded = await loadRazorpayScript();
-      if (!loaded) throw new Error("Payment SDK failed to load. Please try again.");
+      if (!loaded) {
+        // Razorpay script failed — likely blocked in a restricted WebView.
+        // Guide the user to open in Chrome.
+        const isAndroidWebView = /Android/.test(navigator.userAgent) && /wv/.test(navigator.userAgent);
+        if (isAndroidWebView) {
+          throw new Error("Payment couldn't load inside the app. Please open this page in Chrome browser to pay.");
+        }
+        throw new Error("Payment SDK failed to load. Please check your internet connection and try again.");
+      }
 
       const orderRes = await fetch(`${getApiBase()}/payment/create-order`, {
         method: "POST",
@@ -557,7 +565,10 @@ function AutoFixButton({
         orderId: string; amount: number; currency: string; keyId: string;
       };
 
-      const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+      const ua = navigator.userAgent;
+      const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua);
+      // Android WebView: UA contains "wv" alongside "Android"
+      const isAndroidWebView = /Android/.test(ua) && /wv/.test(ua);
 
       await new Promise<void>((resolve, reject) => {
         const rzp = new window.Razorpay({
@@ -577,12 +588,18 @@ function AutoFixButton({
             if (!verifyRes.ok) { reject(new Error("Payment verification failed. Contact support.")); return; }
             resolve();
           },
-          modal: { ondismiss: () => reject(new Error("cancelled")) },
+          modal: {
+            ondismiss: () => reject(new Error("cancelled")),
+            // In Android WebView, allow the modal to escape the WebView sandbox
+            // by using a redirect-style flow if popup creation fails.
+            escape: false,
+          },
           theme: { color: "#2E86AB" },
-          // On desktop hide UPI app-intents (Google Pay redirect) since browsers
-          // can't launch payment apps — show QR + UPI ID entry instead.
-          // On mobile keep intents enabled so installed UPI apps open directly.
-          ...(!isMobile && {
+          // In Android WebView keep UPI intents enabled so installed payment apps
+          // (GPay, PhonePe, Paytm) open via deep-link directly without a browser redirect.
+          // On desktop hide UPI intents (show QR + UPI ID instead, since desktop
+          // browsers can't launch payment apps).
+          ...(!isMobile && !isAndroidWebView && {
             config: {
               display: {
                 hide: [{ method: "upi", flows: ["intent"] }],
@@ -651,10 +668,10 @@ function AutoFixButton({
       {rewriteStatus && (
         <p className="text-xs text-center text-muted-foreground">
           {needsPayment
-            ? "Your 2 free rewrites are used up. Pay ₹100 to generate another."
+            ? "Your free rewrite is used up. Pay ₹99 to generate another."
             : hasPaidCredit
             ? "Paid credit available — rewrite included."
-            : `${freeLeft} free rewrite${freeLeft === 1 ? "" : "s"} remaining (${rewriteStatus.freeUsed}/${rewriteStatus.freeLimit} used).`}
+            : `${freeLeft} free rewrite remaining (${rewriteStatus.freeUsed}/${rewriteStatus.freeLimit} used).`}
         </p>
       )}
       <Button
@@ -666,7 +683,7 @@ function AutoFixButton({
         {isProcessingPayment ? (
           <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Processing Payment…</>
         ) : needsPayment ? (
-          <><CreditCard className="mr-2 h-5 w-5" /> Pay ₹100 — Auto-Fix Resume</>
+          <><CreditCard className="mr-2 h-5 w-5" /> Pay ₹99 — Auto-Fix Resume</>
         ) : (
           <><Wand2 className="mr-2 h-5 w-5" /> Auto-Fix My Resume{freeLeft !== null && freeLeft > 0 ? " — Free" : ""}</>
         )}

@@ -50,7 +50,7 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] flex items-center justify-center p-6 bg-background">
+    <div className="min-h-[calc(100vh-3.5rem)] flex items-start justify-center p-6 pt-8 pb-10 bg-background overflow-y-auto">
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}

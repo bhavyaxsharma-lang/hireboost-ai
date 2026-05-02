@@ -1,0 +1,129 @@
+You are an expert full-stack developer and mobile UI/UX specialist. Improve and fix my existing web app "HireBoost AI" so it works perfectly on Android devices when packaged as an app (WebView or PWA).
+
+### 🔧 1. Fix Authentication Issues (Forgot Password)
+
+* Current issue: "Forgot Password" with resend API is not working.
+* Implement a simple and reliable solution:
+
+  * Add a **direct reset password screen** with:
+
+    * Email input
+    * New password
+    * Confirm password
+    * Submit button
+  * Ensure proper validation:
+
+    * Email format validation
+    * Password match validation
+  * Show clear success/error messages
+* Make sure API integration works correctly and handles failures gracefully.
+
+### 📱 2. Fix Mobile Responsiveness (High Priority)
+
+* Current issue: Input fields (especially password fields) are cut/half visible on mobile screens.
+* Fix using:
+
+  * Responsive design (Flexbox/Grid)
+  * Proper padding and margins
+  * Mobile-first CSS
+* Ensure compatibility for:
+
+  * Small Android screens
+  * Different resolutions
+* Use:
+
+  * max-width: 100%
+  * proper viewport scaling
+* All forms must be fully visible without zoom or scroll issues.
+
+### 💳 3. Fix Razorpay + Google Pay Payment Issues
+
+* Current issue:
+
+  * QR / GPay not working
+  * Infinite loading spinner OR "webpage not available"
+* Fix by:
+
+  * Ensuring Razorpay checkout opens properly inside Android WebView
+  * Add fallback:
+
+    * If WebView fails → open payment in external browser
+  * Enable:
+
+    * UPI intent support
+    * Proper callback handling after payment success/failure
+  * Ensure production-ready Razorpay integration (no test mode issues)
+
+### 🎨 4. Enhance UI/UX (Make it Premium & Modern)
+
+* Improve overall UI to look like a professional AI SaaS product
+* Add:
+
+  * Background image on login screen (clean, corporate, AI theme)
+  * Soft gradient overlays
+  * Card-based layout inside app
+* Improve screens:
+
+  * Dashboard
+  * Resume Analyzer
+  * Salary Scripts
+  * JD Preparation
+  * Mock Interview
+* Use:
+
+  * Modern fonts
+  * Smooth animations
+  * Clean buttons and spacing
+* Maintain fast performance (no heavy images)
+
+### 💰 5. Update Pricing Logic
+
+* Change:
+
+  * Resume auto-fix limit → from 2 to 1
+* Update pricing:
+
+  * ₹99 INR
+  * $1.04 USD
+* Reflect changes in:
+
+  * UI
+  * Payment logic
+  * Backend validation
+
+### 🚀 6. Improve Product Value (Important)
+
+Make this app more useful for job seekers:
+
+* Add:
+
+  * Resume score indicator
+  * Suggestions for improvement
+  * Interview Q&A generation
+  * ATS keyword suggestions
+* Improve engagement:
+
+  * Clean dashboard insights
+  * Easy navigation
+
+### ⚡ 7. Android Optimization (Critical)
+
+* Ensure app works smoothly inside Android WebView:
+
+  * No broken redirects
+  * No blocked scripts
+  * Enable JavaScript properly
+* Add:
+
+  * Loader handling (no infinite spinner)
+  * Error fallback UI
+
+### ✅ Final Output Required
+
+* Fully working responsive app
+* All APIs functional
+* Razorpay working on Android
+* Clean modern UI
+* Optimized for mobile screens
+
+Do NOT break existing working features. Only enhance and fix issues.

@@ -6,7 +6,7 @@ import { eq, and } from "drizzle-orm";
 
 const router = Router();
 
-const RESUME_PRICE_PAISE = 10000; // ₹100
+const RESUME_PRICE_PAISE = 9900; // ₹99
 
 function getRazorpay() {
   const keyId = process.env.RAZORPAY_KEY_ID;
@@ -17,7 +17,7 @@ function getRazorpay() {
   return new Razorpay({ key_id: keyId, key_secret: keySecret });
 }
 
-// POST /payment/create-order — creates a Razorpay order for ₹100
+// POST /payment/create-order — creates a Razorpay order for ₹99
 router.post("/create-order", async (req, res) => {
   const userId = req.session?.userId;
   if (!userId) {

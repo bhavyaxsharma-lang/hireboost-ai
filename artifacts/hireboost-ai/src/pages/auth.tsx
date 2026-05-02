@@ -66,7 +66,7 @@ export default function Auth() {
     <div className="min-h-[calc(100vh-3.5rem)] flex">
       {/* ── Left branding panel — photo background ── */}
       <div
-        className="hidden lg:flex flex-col flex-1 p-12 justify-between relative overflow-hidden"
+        className="hidden lg:flex flex-col flex-1 p-12 justify-between relative overflow-hidden select-none"
         style={{
           backgroundImage: "url('https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=1400&auto=format&fit=crop')",
           backgroundSize: "cover",
@@ -107,7 +107,7 @@ export default function Auth() {
       </div>
 
       {/* ── Right form panel ── */}
-      <div className="flex flex-1 items-center justify-center p-6 bg-background">
+      <div className="flex flex-1 items-start justify-center p-6 pt-8 pb-10 bg-background overflow-y-auto">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
