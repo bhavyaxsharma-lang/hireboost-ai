@@ -49,10 +49,9 @@ export default function Auth() {
       registerMutation.mutate(
         { data: { name, email, password } },
         {
-          onSuccess: () => {
-            toast({ title: "Account created! Welcome to HireBoost AI." });
-            setLocation("/dashboard");
-            window.location.reload();
+          onSuccess: (data) => {
+            toast({ title: "Check your inbox", description: data.message });
+            setIsLogin(true);
           },
           onError: (error) => {
             toast({ title: "Registration Failed", description: error.error || "An error occurred.", variant: "destructive" });

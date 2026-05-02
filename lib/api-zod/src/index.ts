@@ -1,11 +1,15 @@
 export * from "./generated/api";
 
+// CreateInterviewSessionBody is overridden below to add .int() on questionCount,
+// which orval does not generate from type:integer. This named export takes
+// precedence over the export * from generated/api above.
+export { CreateInterviewSessionBody } from "./overrides";
+
 export * from "./generated/types/activityItem";
 export * from "./generated/types/activityItemType";
 export type { AnalyzeResumeBody } from "./generated/types/analyzeResumeBody";
 export * from "./generated/types/answerFeedback";
 export * from "./generated/types/authResponse";
-export type { CreateInterviewSessionBody } from "./generated/types/createInterviewSessionBody";
 export * from "./generated/types/createInterviewSessionBodyDifficulty";
 export * from "./generated/types/dashboardStats";
 export * from "./generated/types/errorResponse";

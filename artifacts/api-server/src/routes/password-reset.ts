@@ -83,7 +83,7 @@ router.post("/send-otp", async (req, res) => {
     // Send email — surface failure to caller so UI can show a retry option
     await sendOtpEmail({ to: normalizedEmail, otp });
 
-    res.json({ message: "OTP sent successfully. Check your inbox." });
+    res.json({ message: "If that email is registered, an OTP has been sent." });
   } catch (err) {
     req.log.error({ err }, "Error sending OTP");
     res.status(500).json({ error: "Failed to send OTP. Please try again." });

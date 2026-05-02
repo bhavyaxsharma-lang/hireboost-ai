@@ -134,8 +134,8 @@ export const getRegisterUserUrl = () => {
 export const registerUser = async (
   registerBody: RegisterBody,
   options?: RequestInit,
-): Promise<AuthResponse> => {
-  return customFetch<AuthResponse>(getRegisterUserUrl(), {
+): Promise<MessageResponse> => {
+  return customFetch<MessageResponse>(getRegisterUserUrl(), {
     ...options,
     method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },

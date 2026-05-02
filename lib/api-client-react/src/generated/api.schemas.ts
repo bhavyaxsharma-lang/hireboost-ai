@@ -172,6 +172,7 @@ export interface InterviewSessionWithQuestions {
 
 export interface SubmitAnswerBody {
   questionId: number;
+  /** @maxLength 10000 */
   answer: string;
 }
 

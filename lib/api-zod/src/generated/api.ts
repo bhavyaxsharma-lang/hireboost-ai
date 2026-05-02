@@ -26,6 +26,10 @@ export const RegisterUserBody = zod.object({
   password: zod.string().min(registerUserBodyPasswordMin),
 });
 
+export const RegisterUserResponse = zod.object({
+  message: zod.string(),
+});
+
 /**
  * @summary Login with email and password
  */
@@ -77,14 +81,10 @@ export const UploadResumeResponse = zod.object({
 /**
  * @summary Analyze resume with AI and get ATS score
  */
-export const analyzeResumeBodyResumeTextMax = 15_000;
-export const analyzeResumeBodyJobTitleMax = 200;
-export const analyzeResumeBodyJobDescriptionMax = 5_000;
-
 export const AnalyzeResumeBody = zod.object({
-  resumeText: zod.string().max(analyzeResumeBodyResumeTextMax),
-  jobTitle: zod.string().max(analyzeResumeBodyJobTitleMax).nullish(),
-  jobDescription: zod.string().max(analyzeResumeBodyJobDescriptionMax).nullish(),
+  resumeText: zod.string(),
+  jobTitle: zod.string().nullish(),
+  jobDescription: zod.string().nullish(),
 });
 
 export const AnalyzeResumeResponse = zod.object({
@@ -163,14 +163,12 @@ export const ListInterviewSessionsResponse = zod.array(
  * @summary Create a new interview session and generate questions
  */
 export const createInterviewSessionBodyQuestionCountMax = 20;
-export const createInterviewSessionBodyJobRoleMax = 200;
 
 export const CreateInterviewSessionBody = zod.object({
-  jobRole: zod.string().max(createInterviewSessionBodyJobRoleMax),
+  jobRole: zod.string(),
   difficulty: zod.enum(["easy", "medium", "hard"]).optional(),
   questionCount: zod
     .number()
-    .int()
     .min(1)
     .max(createInterviewSessionBodyQuestionCountMax)
     .optional(),
@@ -214,10 +212,11 @@ export const SubmitAnswerParams = zod.object({
   id: zod.coerce.number(),
 });
 
+export const submitAnswerBodyAnswerMax = 10000;
+
 export const SubmitAnswerBody = zod.object({
   questionId: zod.number(),
-  // Cap answer length to prevent unbounded prompt payloads sent to the AI.
-  answer: zod.string().max(10_000),
+  answer: zod.string().max(submitAnswerBodyAnswerMax),
 });
 
 export const SubmitAnswerResponse = zod.object({
