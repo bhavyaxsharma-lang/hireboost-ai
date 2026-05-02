@@ -25,8 +25,8 @@ The application handles user accounts, session cookies, uploaded resume content,
 ## Scan Anchors
 
 - **Production entry points:** `artifacts/api-server/src/app.ts`, `artifacts/api-server/src/routes/*.ts`, `artifacts/hireboost-ai/src/App.tsx`, `lib/db/src/schema/*`.
-- **Highest-risk areas:** session/cookie/CORS and route-level throttling in `artifacts/api-server/src/app.ts`; public auth and recovery flows in `artifacts/api-server/src/routes/auth.ts` and `password-reset.ts`; user-scoped data routes in `resume.ts`, `interview.ts`, `dashboard.ts`; payment and rewrite-credit logic in `payment.ts` and `resume.ts`; OpenAI-backed endpoints in `resume.ts`, `interview.ts`, `linkedin.ts`, `salary.ts`, and `jd-prep.ts`; file parsing in `parse-file.ts`.
-- **Public surface:** `/api/auth/*`, `/api/health`, and any API route that does not explicitly reject missing sessions. Public auth endpoints are state-changing even without an existing session and still need CSRF/origin and abuse controls. Frontend `ProtectedRoute` pages are not a server-side control and must not be treated as sufficient protection for `/api/resume/parse-file`, `/api/linkedin/*`, or `/api/salary/*`.
+- **Highest-risk areas:** session/cookie/CORS and route-level throttling in `artifacts/api-server/src/app.ts`; public auth and recovery flows in `artifacts/api-server/src/routes/auth.ts` and `password-reset.ts` (especially any direct-reset shortcut that bypasses emailed-token proof); user-scoped data routes in `resume.ts`, `interview.ts`, `dashboard.ts`; payment and rewrite-credit logic in `payment.ts`, `webhook.ts`, and `resume.ts`; OpenAI-backed endpoints in `resume.ts`, `interview.ts`, `linkedin.ts`, `salary.ts`, and `jd-prep.ts`; file parsing in `parse-file.ts`.
+- **Public surface:** `/api/auth/*`, `/api/health`, and any API route that does not explicitly reject missing sessions. Public auth endpoints are state-changing even without an existing session and still need CSRF/origin and abuse controls; password-recovery routes must never rely on knowledge of an email address alone. Frontend `ProtectedRoute` pages are not a server-side control and must not be treated as sufficient protection for `/api/resume/parse-file`, `/api/linkedin/*`, or `/api/salary/*`.
 - **Authenticated surface:** dashboard, resume history, rewrite/payment status, interview history, interview session detail/actions, JD prep, LinkedIn generator, salary-negotiation features, and upload parsing.
 - **Dev-only:** `artifacts/mockup-sandbox`, `lib/api-spec`, `scripts`.
 
@@ -34,7 +34,7 @@ The application handles user accounts, session cookies, uploaded resume content,
 
 ### Spoofing
 
-Users authenticate with email/password and a server-side session. All endpoints that return or mutate user data or consume paid backend resources MUST require a valid authenticated session unless they are intentionally public. Session state MUST be bound to the intended user on every request, and account-recovery flows MUST only deliver reset capability to the mailbox owner rather than to the caller of a public endpoint. Public auth endpoints that can create or change session state (such as login, registration, and forgot-password) MUST reject cross-site requests even in same-origin production deployments; SameSite cookies alone are not a sufficient control for those flows. Third-party payment callbacks or client-submitted payment confirmations MUST be verified before changing credit state.
+Users authenticate with email/password and a server-side session. All endpoints that return or mutate user data or consume paid backend resources MUST require a valid authenticated session unless they are intentionally public. Session state MUST be bound to the intended user on every request, and account-recovery flows MUST only deliver reset capability to the mailbox owner rather than to the caller of a public endpoint; no production reset path may grant password-change capability based solely on a submitted email address. Public auth endpoints that can create or change session state (such as login, registration, and forgot-password) MUST reject cross-site requests even in same-origin production deployments; SameSite cookies alone are not a sufficient control for those flows. Third-party payment callbacks or client-submitted payment confirmations MUST be verified before changing credit state.
 
 ### Tampering
 
@@ -42,7 +42,7 @@ The client can send arbitrary JSON and route parameters regardless of what the f
 
 ### Information Disclosure
 
-Resume text, interview answers, job targets, activity history, and account metadata are private user data. API responses for these resources MUST be scoped to the authenticated user, and cross-origin browser access MUST be restricted to trusted origins only. Error handling and logs MUST avoid leaking secrets, raw credentials, or private document contents.
+Resume text, interview answers, job targets, activity history, and account metadata are private user data. API responses for these resources MUST be scoped to the authenticated user, and object lookups for user-owned records SHOULD avoid distinguishable `403`/`404` existence oracles that reveal whether another user's record exists. Cross-origin browser access MUST be restricted to trusted origins only, and error handling and logs MUST avoid leaking secrets, raw credentials, or private document contents.
 
 ### Denial of Service
 
