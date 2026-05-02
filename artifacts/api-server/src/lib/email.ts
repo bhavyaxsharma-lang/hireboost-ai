@@ -1,30 +1,87 @@
 import { logger } from "./logger";
 
+const FROM_ADDRESS =
+  process.env.EMAIL_FROM ?? "HireBoost AI <onboarding@resend.dev>";
+
+async function sendEmail(opts: {
+  to: string;
+  subject: string;
+  html: string;
+  logContext?: Record<string, unknown>;
+}): Promise<void> {
+  const { to, subject, html, logContext } = opts;
+  const apiKey = process.env.RESEND_API_KEY;
+
+  if (!apiKey) {
+    logger.warn(
+      { to, subject, ...logContext },
+      "RESEND_API_KEY not set — email logged to server only (dev mode)"
+    );
+    return;
+  }
+
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ from: FROM_ADDRESS, to: [to], subject, html }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Resend API error ${res.status}: ${body}`);
+  }
+
+  logger.info({ to, subject }, "Email sent");
+}
+
 /**
- * Sends a password reset email via Resend.
- *
- * Requires the RESEND_API_KEY environment variable and a verified sender domain
- * configured in your Resend dashboard. In development, when RESEND_API_KEY is
- * absent, the link is written to server logs only — it is never returned to the
- * caller so the production security invariant is preserved.
+ * Sends a 6-digit OTP for password reset.
+ */
+export async function sendOtpEmail(opts: {
+  to: string;
+  otp: string;
+}): Promise<void> {
+  const { to, otp } = opts;
+
+  const html = `
+    <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+      <h2 style="color:#1a1a1a;margin-bottom:8px">Reset your HireBoost AI password</h2>
+      <p style="color:#444;margin-bottom:24px">
+        Use the OTP below to reset your password. It is valid for
+        <strong>5 minutes</strong> and can only be used once.
+      </p>
+      <div style="background:#f4f4f5;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px">
+        <span style="font-size:36px;font-weight:700;letter-spacing:10px;color:#2563eb;font-family:monospace">
+          ${otp}
+        </span>
+      </div>
+      <p style="color:#888;font-size:13px">
+        If you didn't request a password reset, you can safely ignore this email.
+        Your password will not change.
+      </p>
+    </div>
+  `;
+
+  await sendEmail({
+    to,
+    subject: "Reset your HireBoost AI password",
+    html,
+    logContext: { type: "otp" },
+  });
+}
+
+/**
+ * @deprecated Use sendOtpEmail instead.
+ * Kept for any remaining references during transition.
  */
 export async function sendPasswordResetEmail(opts: {
   to: string;
   resetUrl: string;
 }): Promise<void> {
   const { to, resetUrl } = opts;
-  const apiKey = process.env.RESEND_API_KEY;
-
-  if (!apiKey) {
-    logger.warn(
-      { resetUrl, to },
-      "RESEND_API_KEY not set — password reset link logged to server only (dev mode)"
-    );
-    return;
-  }
-
-  const fromAddress =
-    process.env.EMAIL_FROM ?? "HireBoost AI <onboarding@resend.dev>";
 
   const html = `
     <div style="font-family:sans-serif;max-width:480px;margin:0 auto">
@@ -40,33 +97,9 @@ export async function sendPasswordResetEmail(opts: {
       </a>
       <p style="color:#888;font-size:13px">
         If you didn't request a password reset, you can safely ignore this email.
-        Your password won't change until you click the link above.
-      </p>
-      <p style="color:#bbb;font-size:12px">
-        Can't click the button? Copy and paste this URL into your browser:<br>
-        <span style="word-break:break-all">${resetUrl}</span>
       </p>
     </div>
   `;
 
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: fromAddress,
-      to: [to],
-      subject: "Reset your HireBoost AI password",
-      html,
-    }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Resend API error ${res.status}: ${body}`);
-  }
-
-  logger.info({ to }, "Password reset email sent");
+  await sendEmail({ to, subject: "Reset your HireBoost AI password", html });
 }

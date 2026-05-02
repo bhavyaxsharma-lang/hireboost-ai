@@ -1,0 +1,116 @@
+You are an expert full-stack developer. Replace the existing password reset via link system with a simple, secure, and mobile-friendly Email OTP-based password reset system for my app "HireBoost AI".
+
+### 🔐 1. OTP-Based Password Reset Flow
+
+Implement the following flow:
+
+1. User enters email
+2. Click "Send OTP"
+3. Backend:
+
+   * Generate a 6-digit numeric OTP
+   * Store OTP with:
+
+     * Email
+     * Expiry (5 minutes)
+   * Send OTP via Resend API
+4. Frontend:
+
+   * Show OTP input field
+   * Show fields:
+
+     * New password
+     * Confirm password
+5. On submit:
+
+   * Validate OTP
+   * Check expiry
+   * Match passwords
+   * Update password securely
+
+---
+
+### 📧 2. Resend Email Integration
+
+* Send a clean email:
+  Subject: Reset your HireBoost AI password
+  Body:
+  "Your OTP is: 123456. It is valid for 5 minutes."
+
+* Handle failures:
+
+  * Show error if email not sent
+  * Retry option
+
+---
+
+### 🛡️ 3. Security Requirements
+
+* Hash passwords before storing
+* OTP must:
+
+  * Expire in 5 minutes
+  * Be single-use
+* Add rate limiting:
+
+  * Max 3 OTP requests per 10 minutes per email
+
+---
+
+### 📱 4. Mobile-Friendly UI (Very Important)
+
+* Fully responsive design
+* No input field should be cut on mobile
+* Use:
+
+  * Full-width inputs
+  * Proper spacing
+* Add:
+
+  * OTP auto-focus
+  * Clean button styles
+
+---
+
+### 🎨 5. UX Enhancements
+
+* Show:
+
+  * "OTP Sent Successfully"
+  * Countdown timer (5 min)
+* Add:
+
+  * Resend OTP button (after 30 sec)
+* Show loading indicators properly
+
+---
+
+### ⚡ 6. Error Handling
+
+* Invalid email → show message
+* Wrong OTP → show error
+* Expired OTP → ask to resend
+* API failure → retry option
+
+---
+
+### 🔄 7. Remove Old Logic
+
+* Remove:
+
+  * Token-based reset links
+  * Reset password URLs
+* Replace fully with OTP system
+
+---
+
+### ✅ Final Output
+
+* Fully working OTP reset system
+* Works smoothly in:
+
+  * Web
+  * Android WebView
+* Clean, fast, and user-friendly
+
+Do NOT break existing login/signup functionality.

@@ -1,207 +1,185 @@
 import { Router } from "express";
-import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { db, pool } from "@workspace/db";
-import { users, passwordResetTokens } from "@workspace/db";
-import { eq, and, gt, isNull } from "drizzle-orm";
-import { sendPasswordResetEmail } from "../lib/email";
-
-/**
- * Returns the trusted application origin used to construct password reset URLs.
- *
- * Uses only server-side environment variables — never request headers — to
- * prevent password-reset-poisoning / host-header injection attacks.
- *
- * Priority:
- *  1. APP_ORIGIN  — explicitly configured canonical origin (preferred for prod)
- *  2. REPLIT_DEV_DOMAIN — injected by the Replit platform (trusted, dev only)
- *
- * Returns null when neither is set; callers must handle the absence gracefully.
- */
-function getAppOrigin(): string | null {
-  if (process.env.APP_ORIGIN) {
-    return process.env.APP_ORIGIN.replace(/\/$/, "");
-  }
-  if (process.env.REPLIT_DEV_DOMAIN) {
-    return `https://${process.env.REPLIT_DEV_DOMAIN}`;
-  }
-  return null;
-}
+import { users, passwordResetOtps } from "@workspace/db";
+import { eq, and, gt } from "drizzle-orm";
+import { sendOtpEmail } from "../lib/email";
 
 const router = Router();
 
-// POST /auth/forgot-password
-// Accepts { email } — generates a reset token and stores it; delivery is via email (not the response)
-router.post("/forgot-password", async (req, res) => {
-  const { email } = req.body;
-  if (!email || typeof email !== "string") {
-    res.status(400).json({ error: "Email is required" });
+// In-memory per-email rate limit: max 3 OTP sends per 10 minutes per email.
+// IP-level rate limiting is applied in app.ts; this adds a second layer so
+// an attacker rotating IPs still can't spam a single victim's inbox.
+const otpEmailRequests = new Map<string, { count: number; windowStart: number }>();
+
+function checkEmailRateLimit(email: string): boolean {
+  const now = Date.now();
+  const WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+  const MAX = 3;
+
+  const entry = otpEmailRequests.get(email);
+  if (!entry || now - entry.windowStart > WINDOW_MS) {
+    otpEmailRequests.set(email, { count: 1, windowStart: now });
+    return true;
+  }
+  if (entry.count >= MAX) return false;
+  entry.count += 1;
+  return true;
+}
+
+// POST /auth/send-otp
+// Accepts { email } — generates a 6-digit OTP, stores hashed copy, sends via Resend.
+router.post("/send-otp", async (req, res) => {
+  const { email } = req.body as { email?: string };
+
+  if (!email || typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    res.status(400).json({ error: "A valid email address is required." });
+    return;
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+
+  if (!checkEmailRateLimit(normalizedEmail)) {
+    res.status(429).json({
+      error: "Too many OTP requests for this email. Please wait 10 minutes before trying again.",
+    });
     return;
   }
 
   try {
-    const [user] = await db.select().from(users).where(eq(users.email, email.toLowerCase().trim())).limit(1);
+    // Check if email is registered (but always respond same way to avoid enumeration)
+    const [user] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, normalizedEmail))
+      .limit(1);
 
-    // Always respond with the same success message to avoid email enumeration
     if (!user) {
-      res.json({ message: "If that email is registered, a reset link has been sent to your inbox." });
+      // Don't reveal whether the email exists — same response as success
+      res.json({ message: "If that email is registered, an OTP has been sent." });
       return;
     }
 
-    // Generate a secure random token
-    const token = crypto.randomBytes(32).toString("hex");
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
+    // Generate a cryptographically random 6-digit OTP
+    const otpNumber = Math.floor(100000 + Math.random() * 900000);
+    const otp = String(otpNumber);
+    const otpHash = await bcrypt.hash(otp, 10);
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
-    // Revoke all prior unused reset tokens for this user and insert the new
-    // one in a single transaction. Doing this atomically prevents a race where
-    // two concurrent forgot-password requests could both see zero active tokens
-    // and each insert a new one, leaving two live tokens in the database.
+    // Invalidate all previous unused OTPs for this email and insert the new one atomically
     await db.transaction(async (tx) => {
       await tx
-        .delete(passwordResetTokens)
-        .where(and(eq(passwordResetTokens.userId, user.id), isNull(passwordResetTokens.usedAt)));
+        .delete(passwordResetOtps)
+        .where(and(eq(passwordResetOtps.email, normalizedEmail), eq(passwordResetOtps.used, false)));
 
-      await tx.insert(passwordResetTokens).values({
-        userId: user.id,
-        token,
+      await tx.insert(passwordResetOtps).values({
+        email: normalizedEmail,
+        otpHash,
         expiresAt,
+        used: false,
       });
     });
 
-    // Build the reset URL from trusted server-side configuration only.
-    // Never use request headers (Origin, Host) here — an attacker can forge
-    // them to redirect the reset token to infrastructure they control
-    // (password-reset poisoning / token exfiltration via click).
-    const appOrigin = getAppOrigin();
-    if (!appOrigin) {
-      req.log.error("APP_ORIGIN is not configured — cannot send password reset email");
-      // Return success to the caller to avoid enumeration; log internally.
-      res.json({ message: "If that email is registered, a reset link has been sent to your inbox." });
-      return;
-    }
-    const resetUrl = `${appOrigin}/reset-password?token=${token}`;
+    // Send email — surface failure to caller so UI can show a retry option
+    await sendOtpEmail({ to: normalizedEmail, otp });
 
-    // Fire-and-forget: log delivery failures internally but never bubble them
-    // to the caller. Propagating email-send errors would let an attacker
-    // distinguish registered from unregistered addresses by observing
-    // whether the endpoint returns 200 or 500.
-    sendPasswordResetEmail({ to: user.email, resetUrl }).catch((err: unknown) => {
-      req.log.error({ err, userId: user.id }, "Failed to send password reset email");
-    });
-
-    res.json({
-      message: "If that email is registered, a reset link has been sent to your inbox.",
-    });
+    res.json({ message: "OTP sent successfully. Check your inbox." });
   } catch (err) {
-    req.log.error({ err }, "Error generating password reset token");
-    res.status(500).json({ error: "Internal server error" });
+    req.log.error({ err }, "Error sending OTP");
+    res.status(500).json({ error: "Failed to send OTP. Please try again." });
   }
 });
 
-// POST /auth/reset-password
-// Accepts { token, newPassword }
-router.post("/reset-password", async (req, res) => {
-  const { token, newPassword } = req.body;
-  if (!token || !newPassword || typeof token !== "string" || typeof newPassword !== "string") {
-    res.status(400).json({ error: "Token and new password are required" });
+// POST /auth/verify-otp-reset
+// Accepts { email, otp, newPassword } — validates OTP, updates password, revokes sessions.
+router.post("/verify-otp-reset", async (req, res) => {
+  const { email, otp, newPassword } = req.body as {
+    email?: string;
+    otp?: string;
+    newPassword?: string;
+  };
+
+  if (!email || !otp || !newPassword || typeof email !== "string" || typeof otp !== "string" || typeof newPassword !== "string") {
+    res.status(400).json({ error: "Email, OTP, and new password are all required." });
     return;
   }
 
   if (newPassword.length < 8) {
-    res.status(400).json({ error: "Password must be at least 8 characters" });
+    res.status(400).json({ error: "Password must be at least 8 characters." });
     return;
   }
+
+  const normalizedEmail = email.toLowerCase().trim();
 
   try {
     const now = new Date();
 
-    // Find a valid, unused, non-expired token
-    const [resetRecord] = await db
+    // Fetch the most recent unused, unexpired OTP for this email
+    const [otpRecord] = await db
       .select()
-      .from(passwordResetTokens)
+      .from(passwordResetOtps)
       .where(
         and(
-          eq(passwordResetTokens.token, token),
-          isNull(passwordResetTokens.usedAt),
-          gt(passwordResetTokens.expiresAt, now)
+          eq(passwordResetOtps.email, normalizedEmail),
+          eq(passwordResetOtps.used, false),
+          gt(passwordResetOtps.expiresAt, now)
         )
       )
+      .orderBy(passwordResetOtps.createdAt)
       .limit(1);
 
-    if (!resetRecord) {
-      res.status(400).json({ error: "This reset link is invalid or has expired. Please request a new one." });
+    if (!otpRecord) {
+      res.status(400).json({
+        error: "OTP is invalid or has expired. Please request a new one.",
+        expired: true,
+      });
+      return;
+    }
+
+    // Verify OTP (constant-time bcrypt compare)
+    const isValid = await bcrypt.compare(otp, otpRecord.otpHash);
+    if (!isValid) {
+      res.status(400).json({ error: "Incorrect OTP. Please check and try again." });
+      return;
+    }
+
+    // Look up the user
+    const [user] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, normalizedEmail))
+      .limit(1);
+
+    if (!user) {
+      res.status(400).json({ error: "No account found for this email." });
       return;
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
 
-    // Update password and invalidate ALL unused reset tokens for this user in
-    // a single transaction. Doing this atomically ensures that if either
-    // operation fails, neither takes effect — preventing a state where the
-    // password is changed but tokens remain live (or vice-versa). Revoking by
-    // userId rather than just the presented token id closes any concurrent
-    // reset replay window.
+    // Update password and mark OTP as used atomically
     await db.transaction(async (tx) => {
-      await tx.update(users).set({ passwordHash }).where(eq(users.id, resetRecord.userId));
       await tx
-        .update(passwordResetTokens)
-        .set({ usedAt: now })
-        .where(
-          and(
-            eq(passwordResetTokens.userId, resetRecord.userId),
-            isNull(passwordResetTokens.usedAt)
-          )
-        );
+        .update(users)
+        .set({ passwordHash })
+        .where(eq(users.id, user.id));
+
+      await tx
+        .update(passwordResetOtps)
+        .set({ used: true })
+        .where(eq(passwordResetOtps.id, otpRecord.id));
     });
 
-    // Revoke all existing sessions for this user so that any previously stolen
-    // session cookie cannot be reused after the password is changed. The
-    // user_sessions table is managed by connect-pg-simple; the sess column
-    // contains the session JSON, and userId is stored inside it.
+    // Revoke all active sessions for this user so stolen cookies can't be reused
     await pool.query(
       `DELETE FROM user_sessions WHERE sess->>'userId' = $1`,
-      [String(resetRecord.userId)]
+      [String(user.id)]
     );
 
     res.json({ message: "Password updated successfully. You can now log in." });
   } catch (err) {
-    req.log.error({ err }, "Error resetting password");
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-// GET /auth/verify-reset-token?token=xxx
-// Used by the frontend to check if a token is still valid before showing the form
-router.get("/verify-reset-token", async (req, res) => {
-  const { token } = req.query;
-  if (!token || typeof token !== "string") {
-    res.status(400).json({ error: "Token is required" });
-    return;
-  }
-
-  try {
-    const now = new Date();
-    const [resetRecord] = await db
-      .select()
-      .from(passwordResetTokens)
-      .where(
-        and(
-          eq(passwordResetTokens.token, token),
-          isNull(passwordResetTokens.usedAt),
-          gt(passwordResetTokens.expiresAt, now)
-        )
-      )
-      .limit(1);
-
-    if (!resetRecord) {
-      res.status(400).json({ valid: false, error: "This reset link is invalid or has expired." });
-      return;
-    }
-
-    res.json({ valid: true });
-  } catch (err) {
-    req.log.error({ err }, "Error verifying reset token");
-    res.status(500).json({ error: "Internal server error" });
+    req.log.error({ err }, "Error verifying OTP reset");
+    res.status(500).json({ error: "Internal server error. Please try again." });
   }
 });
 

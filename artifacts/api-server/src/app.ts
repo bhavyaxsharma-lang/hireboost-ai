@@ -170,8 +170,17 @@ const authLimiter = rateLimit({
   message: { error: "Too many authentication attempts, please try again later." },
 });
 
-// Password-reset rate limit: 5 requests per hour per IP.
-// Limits reset-email spam against arbitrary addresses.
+// OTP send rate limit: 5 requests per 10 minutes per IP.
+// A second per-email layer is enforced in the route handler itself.
+const otpLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many OTP requests, please try again later." },
+});
+
+// Password-reset rate limit: 5 requests per hour per IP (legacy — kept for safety).
 const passwordResetLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 5,
@@ -183,8 +192,8 @@ const passwordResetLimiter = rateLimit({
 app.use("/api", generalLimiter);
 app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
-app.use("/api/auth/forgot-password", passwordResetLimiter);
-app.use("/api/auth/direct-reset", passwordResetLimiter);
+app.use("/api/auth/send-otp", otpLimiter);
+app.use("/api/auth/verify-otp-reset", passwordResetLimiter);
 // Dedicated limiter for CPU-intensive file parsing (applied before the route handler).
 app.post("/api/resume/parse-file", parseFileLimiter);
 app.use("/api/resume/analyze", aiLimiter);

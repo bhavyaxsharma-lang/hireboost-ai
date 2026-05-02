@@ -7,3 +7,4 @@ export * from "./messages";
 export * from "./payments";
 export * from "./rewrite-logs";
 export * from "./password-reset-tokens";
+export * from "./password-reset-otps";
