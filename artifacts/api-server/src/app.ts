@@ -207,6 +207,33 @@ app.post("/api/linkedin/generate", aiLimiter);
 app.post("/api/linkedin/make-viral", aiLimiter);
 app.post("/api/salary/generate", aiLimiter);
 
+// Fail-closed webhook guard: if either Razorpay key is present, all three must be
+// configured together. Partial configuration is rejected at startup because:
+//   - RAZORPAY_KEY_ID without RAZORPAY_KEY_SECRET: payment API calls will fail at
+//     runtime, potentially after credits have already been promised.
+//   - Either key without RAZORPAY_WEBHOOK_SECRET: post-settlement reversals (refunds,
+//     disputes) cannot be reconciled — users could spend paid credits after charge
+//     reversal.
+// Refusing to start is safer than silently selling credits with broken reconciliation.
+const razorpayKeyId = process.env.RAZORPAY_KEY_ID;
+const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET;
+const razorpayWebhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+const razorpayEnabled = razorpayKeyId || razorpayKeySecret;
+if (razorpayEnabled) {
+  const missing: string[] = [];
+  if (!razorpayKeyId) missing.push("RAZORPAY_KEY_ID");
+  if (!razorpayKeySecret) missing.push("RAZORPAY_KEY_SECRET");
+  if (!razorpayWebhookSecret) missing.push("RAZORPAY_WEBHOOK_SECRET");
+  if (missing.length > 0) {
+    throw new Error(
+      `Incomplete Razorpay configuration: ${missing.join(", ")} must be set. ` +
+      "All three Razorpay variables must be configured together. " +
+      "RAZORPAY_WEBHOOK_SECRET is required to reconcile refunds and disputes — " +
+      "without it paid credits remain valid after charge reversal."
+    );
+  }
+}
+
 // Session middleware — PostgreSQL-backed store so sessions survive restarts
 const sessionSecret = process.env.SESSION_SECRET;
 if (!sessionSecret) {

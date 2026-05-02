@@ -50,7 +50,11 @@ router.post("/razorpay", async (req: Request, res: Response) => {
     .digest("hex");
 
   if (expectedSignature !== signature) {
-    logger.warn("Razorpay webhook signature mismatch — rejecting");
+    // Log at error level: sustained signature mismatches are a strong signal that
+    // RAZORPAY_WEBHOOK_SECRET is wrong. A misconfigured secret disables reversal
+    // reconciliation without triggering the startup guard, so this must be visible
+    // in production monitoring as an error, not just a warning.
+    logger.error("Razorpay webhook signature mismatch — rejecting. Check RAZORPAY_WEBHOOK_SECRET matches the Razorpay dashboard value.");
     res.status(400).json({ error: "Invalid webhook signature" });
     return;
   }
