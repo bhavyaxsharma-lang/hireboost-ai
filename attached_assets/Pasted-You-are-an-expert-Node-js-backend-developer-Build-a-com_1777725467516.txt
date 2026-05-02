@@ -1,0 +1,156 @@
+You are an expert Node.js backend developer. Build a complete Email OTP-based password reset system using Gmail SMTP (no domain required) for my app "HireBoost AI".
+
+Use Node.js + Express.
+
+---
+
+## 🔧 1. Install Required Packages
+
+Use:
+
+* express
+* nodemailer
+* bcrypt
+* crypto
+* cors
+* dotenv
+
+---
+
+## ⚙️ 2. Setup Environment Variables (.env)
+
+Create:
+GMAIL_USER=[bhavyaxsharma@gmail.com](mailto:bhavyaxsharma@gmail.com)
+GMAIL_APP_PASSWORD=your_app_password_here
+PORT=5000
+
+---
+
+## 📧 3. Configure Nodemailer (Gmail SMTP)
+
+Use this configuration:
+
+* host: smtp.gmail.com
+* port: 587
+* secure: false
+* auth:
+
+  * user: process.env.GMAIL_USER
+  * pass: process.env.GMAIL_APP_PASSWORD
+
+---
+
+## 🔐 4. OTP Logic
+
+* Generate 6-digit OTP:
+  Math.floor(100000 + Math.random() * 900000)
+
+* Store OTP in memory (or simple object for now):
+  Structure:
+  {
+  email: {
+  otp: "123456",
+  expiresAt: timestamp
+  }
+  }
+
+* Expiry: 5 minutes
+
+---
+
+## 🚀 5. API Endpoints
+
+### 1. Send OTP
+
+POST /send-otp
+
+Input:
+{
+"email": "[user@example.com](mailto:user@example.com)"
+}
+
+Process:
+
+* Generate OTP
+* Store with expiry
+* Send email:
+
+Subject: Reset Your HireBoost AI Password
+Body:
+Your OTP is 123456. It is valid for 5 minutes.
+
+Return:
+{ success: true }
+
+---
+
+### 2. Verify OTP & Reset Password
+
+POST /reset-password
+
+Input:
+{
+"email": "[user@example.com](mailto:user@example.com)",
+"otp": "123456",
+"newPassword": "password123"
+}
+
+Process:
+
+* Check if OTP exists
+* Validate expiry
+* Match OTP
+* Hash password using bcrypt
+* Update password (mock DB or existing DB)
+* Delete OTP after use
+
+Return:
+{ success: true, message: "Password reset successful" }
+
+---
+
+## 🛡️ 6. Security
+
+* Hash passwords using bcrypt
+* OTP should:
+
+  * Expire in 5 minutes
+  * Be single-use
+* Add basic rate limit:
+
+  * Max 3 OTP requests per 10 minutes per email
+
+---
+
+## 📱 7. CORS Setup
+
+Allow frontend (Replit app + Android WebView)
+
+---
+
+## ⚡ 8. Error Handling
+
+Return proper messages:
+
+* Invalid email
+* OTP expired
+* Wrong OTP
+* Email send failure
+
+---
+
+## ▶️ 9. Start Server
+
+Use:
+app.listen(process.env.PORT)
+
+---
+
+## ✅ Final Output Required
+
+* Fully working backend APIs
+* Gmail OTP working for any email
+* Clean, production-ready structure
+* Console logs for debugging
+
+Do NOT overcomplicate. Keep it simple and working.
