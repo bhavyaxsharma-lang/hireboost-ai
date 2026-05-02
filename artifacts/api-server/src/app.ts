@@ -266,6 +266,7 @@ const userAiLimiter = rateLimit({
 
 app.use("/api/resume/analyze", userAiLimiter);
 app.use("/api/resume/rewrite", userAiLimiter);
+app.post("/api/resume/parse-file", userAiLimiter);
 app.post("/api/interview/sessions", userAiLimiter);
 app.post(/^\/api\/interview\/sessions\/\d+\/answer\/?$/, userAiLimiter);
 app.post("/api/interview/jd-prep", userAiLimiter);
