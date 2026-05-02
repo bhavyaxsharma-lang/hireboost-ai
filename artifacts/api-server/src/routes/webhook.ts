@@ -8,9 +8,17 @@
 
 import { Router, type Request, type Response } from "express";
 import crypto from "crypto";
+import Razorpay from "razorpay";
 import { db, payments } from "@workspace/db";
 import { eq, and, notInArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
+
+function getRazorpay(): Razorpay | null {
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  if (!keyId || !keySecret) return null;
+  return new Razorpay({ key_id: keyId, key_secret: keySecret });
+}
 
 const router = Router();
 
@@ -153,6 +161,48 @@ async function markPaymentByPaymentId(razorpayPaymentId: string, newStatus: stri
     { razorpayPaymentId, newStatus, updated: result.length },
     "Payment status updated via webhook (by payment ID)",
   );
+
+  if (result.length === 0) {
+    // The local row may not yet have razorpayPaymentId stored (client hasn't called
+    // /payment/verify yet). Fetch from Razorpay to get the associated order_id, then
+    // mark by order_id so the adverse event is not silently dropped.
+    const razorpay = getRazorpay();
+    if (!razorpay) {
+      logger.warn({ razorpayPaymentId, newStatus }, "Cannot do order-ID fallback: Razorpay not configured");
+      return;
+    }
+
+    let orderId: string | undefined;
+    try {
+      const payment = await razorpay.payments.fetch(razorpayPaymentId);
+      orderId = payment.order_id as string | undefined;
+    } catch (err) {
+      logger.error({ err, razorpayPaymentId }, "Failed to fetch payment from Razorpay for order-ID fallback");
+      return;
+    }
+
+    if (!orderId) {
+      logger.warn({ razorpayPaymentId }, "Razorpay payment has no order_id — cannot do fallback lookup");
+      return;
+    }
+
+    // Also store the razorpayPaymentId on the row so future lookups by payment_id succeed.
+    const fallbackResult = await db
+      .update(payments)
+      .set({ status: newStatus, razorpayPaymentId })
+      .where(
+        and(
+          eq(payments.razorpayOrderId, orderId),
+          notInArray(payments.status, [...TERMINAL_ADVERSE_STATUSES]),
+        ),
+      )
+      .returning({ id: payments.id });
+
+    logger.info(
+      { razorpayPaymentId, orderId, newStatus, updated: fallbackResult.length },
+      "Payment status updated via webhook (by order ID fallback)",
+    );
+  }
 }
 
 export default router;
