@@ -142,19 +142,13 @@ router.post("/verify", async (req, res) => {
         return;
       }
     } catch (err) {
-      // If the disputes endpoint is unavailable (e.g. credentials lack dispute scope),
-      // behaviour is controlled by PAYMENT_VERIFY_REQUIRE_DISPUTE_CHECK:
-      //   true  → fail-closed: reject the verify request so no credit is granted
-      //           while dispute-API access is degraded.
-      //   false (default) → fail-open: log and continue, relying on the webhook
-      //           reconciliation path (order-ID fallback) for defence-in-depth.
-      req.log.warn({ err, razorpay_payment_id }, "Could not fetch disputes from Razorpay");
-      if (process.env.PAYMENT_VERIFY_REQUIRE_DISPUTE_CHECK === "true") {
-        req.log.error({ razorpay_payment_id }, "Dispute check required but failed — rejecting verify");
-        res.status(503).json({ error: "Unable to verify payment safety; please try again" });
-        return;
-      }
-      req.log.warn({ razorpay_payment_id }, "Dispute check skipped (fail-open); webhook reconciliation provides defence-in-depth");
+      // If the disputes endpoint is unavailable for any reason (missing scope, outage,
+      // network failure, etc.), always fail closed: do not grant credit when we cannot
+      // confirm the payment is dispute-free. Relying on webhook reconciliation as a
+      // fallback is insufficient because webhook delivery is not guaranteed.
+      req.log.error({ err, razorpay_payment_id }, "Could not fetch disputes from Razorpay — rejecting verify to protect against disputed payments");
+      res.status(503).json({ error: "Unable to verify payment safety; please try again" });
+      return;
     }
 
     if (paymentDetails.order_id !== razorpay_order_id) {
