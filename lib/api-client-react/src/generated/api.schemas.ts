@@ -53,10 +53,17 @@ export interface ResumeUploadResponse {
 }
 
 export interface AnalyzeResumeBody {
+  /** @maxLength 15000 */
   resumeText: string;
-  /** @nullable */
+  /**
+   * @maxLength 200
+   * @nullable
+   */
   jobTitle?: string | null;
-  /** @nullable */
+  /**
+   * @maxLength 10000
+   * @nullable
+   */
   jobDescription?: string | null;
 }
 
@@ -99,6 +106,7 @@ export const CreateInterviewSessionBodyDifficulty = {
 } as const;
 
 export interface CreateInterviewSessionBody {
+  /** @maxLength 200 */
   jobRole: string;
   difficulty?: CreateInterviewSessionBodyDifficulty;
   /**

@@ -8,6 +8,7 @@
 import type { CreateInterviewSessionBodyDifficulty } from "./createInterviewSessionBodyDifficulty";
 
 export interface CreateInterviewSessionBody {
+  /** @maxLength 200 */
   jobRole: string;
   difficulty?: CreateInterviewSessionBodyDifficulty;
   /**

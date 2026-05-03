@@ -448,10 +448,13 @@ components:
       properties:
         resumeText:
           type: string
+          maxLength: 15000
         jobTitle:
           type: ["string", "null"]
+          maxLength: 200
         jobDescription:
           type: ["string", "null"]
+          maxLength: 10000
       required:
         - resumeText
 
@@ -532,6 +535,7 @@ components:
       properties:
         jobRole:
           type: string
+          maxLength: 200
         difficulty:
           type: string
           enum: [easy, medium, hard]

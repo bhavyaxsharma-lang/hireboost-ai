@@ -7,9 +7,16 @@
  */
 
 export interface AnalyzeResumeBody {
+  /** @maxLength 15000 */
   resumeText: string;
-  /** @nullable */
+  /**
+   * @maxLength 200
+   * @nullable
+   */
   jobTitle?: string | null;
-  /** @nullable */
+  /**
+   * @maxLength 10000
+   * @nullable
+   */
   jobDescription?: string | null;
 }
