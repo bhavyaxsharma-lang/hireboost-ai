@@ -1,0 +1,27 @@
+kind = "mobile"
+previewPath = "/mobile/"
+title = "HireBoost AI — Android"
+version = "1.0.0"
+id = "artifacts/hireboost-mobile"
+router = "expo-domain"
+
+[[integratedSkills]]
+name = "expo"
+version = "1.0.0"
+
+[[services]]
+ensurePreviewReachable = "/status"
+name = "expo"
+paths = [ "/mobile/" ]
+localPort = 25516
+
+[services.development]
+run = "pnpm --filter @workspace/hireboost-mobile run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/hireboost-mobile", "run", "build" ]
+run = [ "pnpm", "--filter", "@workspace/hireboost-mobile", "run", "serve" ]
+
+[services.env]
+PORT = "25516"
+BASE_PATH = "/mobile/"

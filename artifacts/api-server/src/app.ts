@@ -9,6 +9,7 @@ import fs from "fs";
 import router from "./routes";
 import webhookRouter from "./routes/webhook";
 import { logger } from "./lib/logger";
+import { verifyToken } from "./lib/jwt";
 
 const app: Express = express();
 
@@ -273,6 +274,22 @@ app.use(
     },
   }),
 );
+
+// Bearer token middleware — runs AFTER session middleware so req.session is
+// already initialized. Mobile clients send JWT in Authorization: Bearer header.
+// If no session userId is set yet, we verify the JWT and inject the userId so
+// all downstream route handlers work identically for both auth mechanisms.
+app.use((req: Request, _res: Response, next: NextFunction) => {
+  const auth = req.headers.authorization;
+  if (auth?.startsWith("Bearer ") && !req.session?.userId) {
+    const token = auth.slice(7);
+    const payload = verifyToken(token);
+    if (payload) {
+      req.session.userId = payload.userId;
+    }
+  }
+  next();
+});
 
 // Per-user AI rate limit: 10 requests per minute per authenticated user.
 // This runs AFTER session middleware so req.session.userId is available.

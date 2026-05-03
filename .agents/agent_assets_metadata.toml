@@ -6,6 +6,12 @@ uri = "file://artifacts/hireboost-ai/public/hero.png"
 type = "image"
 title = "career coach mobile app hero"
 
+[[generated]]
+id = "c6S3bIoZV02REjPpFu9bQ"
+uri = "file://artifacts/hireboost-mobile/assets/images/icon.png"
+type = "image"
+title = "hireboost app icon"
+
 [[outputs]]
 id = "_pJXUAAYl_WnqaVq8smdH"
 uri = "file://myapp.zip"

@@ -8,6 +8,7 @@ import {
   RegisterUserBody,
   LoginUserBody,
 } from "@workspace/api-zod";
+import { signToken } from "../lib/jwt";
 
 declare module "express-session" {
   interface SessionData {
@@ -74,8 +75,11 @@ router.post("/login", async (req, res) => {
       return;
     }
 
-    // Set session
+    // Set session (for web clients)
     req.session.userId = user.id;
+
+    // Sign a JWT token for mobile clients
+    const token = signToken({ userId: user.id, name: user.name, email: user.email });
 
     res.json({
       user: {
@@ -84,6 +88,7 @@ router.post("/login", async (req, res) => {
         email: user.email,
         createdAt: user.createdAt,
       },
+      token,
       message: "Logged in successfully",
     });
   } catch (err) {
