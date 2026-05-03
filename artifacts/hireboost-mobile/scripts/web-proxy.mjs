@@ -48,6 +48,14 @@ function stripBase(url) {
 }
 
 function forwardRequest(clientReq, clientRes) {
+  // Respond to health-check paths immediately without hitting Metro
+  const rawPath = clientReq.url.split("?")[0];
+  if (rawPath === "/status" || rawPath === `${BASE_PATH}/status` || rawPath === `${BASE_PATH}status`) {
+    clientRes.writeHead(200, { "content-type": "text/plain" });
+    clientRes.end("ok");
+    return;
+  }
+
   const needsRewrite = hasBasePrefix(clientReq.url);
   const metroPath = needsRewrite ? stripBase(clientReq.url) : clientReq.url;
 
