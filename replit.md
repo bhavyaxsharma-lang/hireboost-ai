@@ -10,14 +10,27 @@ Full-stack AI-powered web app for resume analysis and mock interview coaching. M
 - **Node.js version**: 24
 - **Package manager**: pnpm
 - **TypeScript version**: 5.9
-- **Frontend**: React + Vite (artifacts/hireboost-ai)
+- **Web frontend**: React + Vite (artifacts/hireboost-ai)
+- **Mobile frontend**: Expo React Native (artifacts/hireboost-mobile) — Android + web preview
 - **API framework**: Express 5 (artifacts/api-server)
 - **Database**: PostgreSQL + Drizzle ORM
 - **AI**: OpenAI via Replit AI Integrations (gpt-5.2)
-- **Auth**: Session-based (express-session + bcryptjs)
+- **Auth**: Session-based on web (express-session + bcryptjs); JWT Bearer tokens on mobile
+- **Payments**: Razorpay (₹99/resume rewrite after 1 free; UPI/WebView on Android)
 - **Validation**: Zod (zod/v4), drizzle-zod
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
+
+## Mobile App Architecture (Expo)
+
+- **Entry**: `artifacts/hireboost-mobile/app/_layout.tsx` — GestureHandlerRootView → KeyboardProvider → AuthProvider → expo-router Stack
+- **Auth**: JWT stored in AsyncStorage (`hireboost_auth_token`). `AuthContext` provides `user`, `login()`, `logout()`, `register()`.
+- **API base**: `https://${EXPO_PUBLIC_DOMAIN}` (reads `EXPO_PUBLIC_DOMAIN` env var, falls back to `REPLIT_DEV_DOMAIN`)
+- **Tab layout**: Home, Resume, Interview, Tools, Profile (`app/(tabs)/`)
+- **Screens**: login, register, resume-analyzer, interview sessions, mock-interview, jd-prep, linkedin-generator, salary-negotiation, profile
+- **Payments**: Razorpay via `react-native-webview` checkout in a modal WebView (`app/razorpay-checkout.tsx`)
+- **Dev proxy**: `scripts/web-proxy.mjs` — Node HTTP proxy on `$PORT` (25516) that strips `/mobile/` prefix before forwarding to Metro (:25519) and rewrites HTML asset paths to include `/mobile/` so the Replit reverse proxy can serve them. Also injects a `history.replaceState` script to strip the base path from `window.location` before expo-router initialises.
+- **Metro config**: `transformer.publicPath = process.env.BASE_PATH` (set to `/mobile/` by artifact.toml)
 
 ## Features
 

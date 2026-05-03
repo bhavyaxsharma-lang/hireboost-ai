@@ -23,7 +23,8 @@
       }
     },
     "web": {
-      "favicon": "./assets/images/icon.png"
+      "favicon": "./assets/images/icon.png",
+      "publicPath": "/mobile/"
     },
     "plugins": [
       [
