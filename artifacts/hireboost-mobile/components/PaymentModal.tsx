@@ -1,14 +1,15 @@
+import { Ionicons } from "@expo/vector-icons";
 import React, { useRef } from "react";
 import {
   ActivityIndicator,
   Modal,
+  Platform,
   SafeAreaView,
   StyleSheet,
+  Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import { WebView, type WebViewMessageEvent } from "react-native-webview";
-import { Ionicons } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 
 interface PaymentModalProps {
@@ -27,6 +28,15 @@ interface PaymentModalProps {
   onDismiss: () => void;
 }
 
+// Lazy-load WebView only on native — react-native-webview has no web support
+const NativeWebView = Platform.OS !== "web"
+  ? (require("react-native-webview") as typeof import("react-native-webview")).WebView
+  : null;
+
+type WebViewMessageEvent = {
+  nativeEvent: { data: string };
+};
+
 export function PaymentModal({
   visible,
   orderId,
@@ -39,7 +49,7 @@ export function PaymentModal({
   onDismiss,
 }: PaymentModalProps) {
   const colors = useColors();
-  const webViewRef = useRef<WebView>(null);
+  const webViewRef = useRef<unknown>(null);
 
   const html = `<!DOCTYPE html>
 <html>
@@ -92,14 +102,21 @@ export function PaymentModal({
 
   const handleMessage = (event: WebViewMessageEvent) => {
     try {
-      const msg = JSON.parse(event.nativeEvent.data);
+      const msg = JSON.parse(event.nativeEvent.data) as {
+        type: string;
+        data: {
+          razorpay_order_id: string;
+          razorpay_payment_id: string;
+          razorpay_signature: string;
+        };
+      };
       if (msg.type === "PAYMENT_SUCCESS") {
         onSuccess(msg.data);
       } else if (msg.type === "PAYMENT_DISMISSED") {
         onDismiss();
       }
     } catch {
-      // ignore
+      // ignore parse errors
     }
   };
 
@@ -111,18 +128,38 @@ export function PaymentModal({
             <Ionicons name="close" size={24} color={colors.foreground} />
           </TouchableOpacity>
         </View>
-        <WebView
-          ref={webViewRef}
-          source={{ html }}
-          onMessage={handleMessage}
-          startInLoadingState
-          renderLoading={() => (
-            <View style={styles.loading}>
-              <ActivityIndicator size="large" color={colors.primary} />
-            </View>
-          )}
-          style={{ backgroundColor: colors.background }}
-        />
+
+        {NativeWebView ? (
+          <NativeWebView
+            ref={webViewRef as React.RefObject<InstanceType<typeof NativeWebView>>}
+            source={{ html }}
+            onMessage={handleMessage}
+            startInLoadingState
+            renderLoading={() => (
+              <View style={styles.loading}>
+                <ActivityIndicator size="large" color={colors.primary} />
+              </View>
+            )}
+            style={{ backgroundColor: colors.background }}
+          />
+        ) : (
+          // Web fallback — payments require the native Android app
+          <View style={styles.webFallback}>
+            <Ionicons name="phone-portrait-outline" size={48} color={colors.mutedForeground} />
+            <Text style={[styles.webFallbackTitle, { color: colors.foreground }]}>
+              Use the Android App
+            </Text>
+            <Text style={[styles.webFallbackDesc, { color: colors.mutedForeground }]}>
+              Razorpay payments are only available in the HireBoost AI Android app. Open the app on your device to complete this purchase.
+            </Text>
+            <TouchableOpacity
+              style={[styles.closeTextBtn, { backgroundColor: colors.muted }]}
+              onPress={onDismiss}
+            >
+              <Text style={[styles.closeTextBtnLabel, { color: colors.foreground }]}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </SafeAreaView>
     </Modal>
   );
@@ -140,4 +177,25 @@ const styles = StyleSheet.create({
   },
   closeBtn: { padding: 4 },
   loading: { flex: 1, alignItems: "center", justifyContent: "center" },
+  webFallback: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+    gap: 16,
+  },
+  webFallbackTitle: { fontSize: 20, fontFamily: "Inter_700Bold", textAlign: "center" },
+  webFallbackDesc: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    lineHeight: 21,
+    textAlign: "center",
+  },
+  closeTextBtn: {
+    marginTop: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  closeTextBtnLabel: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
 });
