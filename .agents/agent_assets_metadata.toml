@@ -17,3 +17,9 @@ id = "8naEb_zyirbBMIJuCCC8I"
 uri = "file://hireboost-ai.zip"
 type = "unspecified"
 title = "HireBoost AI — Source Code"
+
+[[outputs]]
+id = "q9sQKSSNq_z8-r6owUyoK"
+uri = "file://hireboost-ai-source.zip"
+type = "unspecified"
+title = "HireBoost AI — Full Source Code"
