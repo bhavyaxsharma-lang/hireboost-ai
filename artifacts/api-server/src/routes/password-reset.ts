@@ -1,11 +1,23 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { db, pool } from "@workspace/db";
 import { users, passwordResetOtps } from "@workspace/db";
-import { eq, and, gt } from "drizzle-orm";
+import { eq, and, gt, sql } from "drizzle-orm";
 import { sendOtpEmail } from "../lib/email";
 
 const router = Router();
+
+// Max failed verification attempts before an OTP record is permanently invalidated.
+const MAX_FAILED_ATTEMPTS = 5;
+
+// Returned for all invalid OTP states — prevents response-body account enumeration.
+const INVALID_OTP_RESPONSE = { error: "OTP is invalid or has expired. Please request a new one." };
+
+// Valid cost-10 bcrypt hash used for timing equalization on paths that skip real comparison.
+// Ensures response time is ~100 ms whether or not an OTP record exists.
+// Generated with: bcrypt.hashSync("dummy-timing-equalization", 10)
+const DUMMY_HASH = "$2a$10$b/knHro6fyYe4t11OKYVaeEZLg2Xg7vx/6t54JE7tcXlqh8PHQSW2";
 
 // In-memory per-email rate limit: max 3 OTP sends per 10 minutes per email.
 // IP-level rate limiting is applied in app.ts; this adds a second layer so
@@ -14,7 +26,7 @@ const otpEmailRequests = new Map<string, { count: number; windowStart: number }>
 
 function checkEmailRateLimit(email: string): boolean {
   const now = Date.now();
-  const WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+  const WINDOW_MS = 10 * 60 * 1000;
   const MAX = 3;
 
   const entry = otpEmailRequests.get(email);
@@ -47,7 +59,6 @@ router.post("/send-otp", async (req, res) => {
   }
 
   try {
-    // Check if email is registered (but always respond same way to avoid enumeration)
     const [user] = await db
       .select({ id: users.id })
       .from(users)
@@ -55,18 +66,19 @@ router.post("/send-otp", async (req, res) => {
       .limit(1);
 
     if (!user) {
-      // Don't reveal whether the email exists — same response as success
+      // Dummy hash keeps response time comparable to the registered-email path,
+      // preventing timing-based account enumeration on this public endpoint.
+      await bcrypt.hash("dummy-equalize-timing", 10);
       res.json({ message: "If that email is registered, an OTP has been sent." });
       return;
     }
 
-    // Generate a cryptographically random 6-digit OTP
-    const otpNumber = Math.floor(100000 + Math.random() * 900000);
+    const otpNumber = crypto.randomInt(100000, 1000000);
     const otp = String(otpNumber);
     const otpHash = await bcrypt.hash(otp, 10);
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
-    // Invalidate all previous unused OTPs for this email and insert the new one atomically
+    // Invalidate previous unused OTPs and insert the new one atomically
     await db.transaction(async (tx) => {
       await tx
         .delete(passwordResetOtps)
@@ -77,13 +89,16 @@ router.post("/send-otp", async (req, res) => {
         otpHash,
         expiresAt,
         used: false,
+        failedAttempts: 0,
       });
     });
 
-    // Send email — surface failure to caller so UI can show a retry option
-    await sendOtpEmail({ to: normalizedEmail, otp });
-
+    // Respond before sending email so SMTP latency cannot reveal account existence.
     res.json({ message: "If that email is registered, an OTP has been sent." });
+
+    sendOtpEmail({ to: normalizedEmail, otp }).catch((emailErr: unknown) => {
+      req.log.error({ err: emailErr }, "Failed to send OTP email");
+    });
   } catch (err) {
     req.log.error({ err }, "Error sending OTP");
     res.status(500).json({ error: "Failed to send OTP. Please try again." });
@@ -114,66 +129,87 @@ router.post("/verify-otp-reset", async (req, res) => {
   try {
     const now = new Date();
 
-    // Fetch the most recent unused, unexpired OTP for this email
-    const [otpRecord] = await db
-      .select()
-      .from(passwordResetOtps)
-      .where(
-        and(
-          eq(passwordResetOtps.email, normalizedEmail),
-          eq(passwordResetOtps.used, false),
-          gt(passwordResetOtps.expiresAt, now)
-        )
-      )
-      .orderBy(passwordResetOtps.createdAt)
-      .limit(1);
+    // Row-locked transaction serializes concurrent verification attempts so that
+    // multiple requests cannot race past the failed-attempt ceiling.
+    // Password update is also performed inside the same transaction so OTP
+    // consumption and the new password are committed atomically.
+    const outcome = await db.transaction(async (tx) => {
+      const result = await tx.execute(sql`
+        SELECT id,
+               otp_hash        AS "otpHash",
+               failed_attempts AS "failedAttempts",
+               used,
+               expires_at      AS "expiresAt"
+        FROM   password_reset_otps
+        WHERE  email      = ${normalizedEmail}
+          AND  used       = false
+          AND  expires_at > ${now}
+        ORDER BY created_at ASC
+        LIMIT  1
+        FOR UPDATE
+      `);
 
-    if (!otpRecord) {
-      res.status(400).json({
-        error: "OTP is invalid or has expired. Please request a new one.",
-        expired: true,
-      });
-      return;
-    }
+      const otpRecord = result.rows[0] as {
+        id: number;
+        otpHash: string;
+        failedAttempts: number;
+        used: boolean;
+        expiresAt: Date;
+      } | undefined;
 
-    // Verify OTP (constant-time bcrypt compare)
-    const isValid = await bcrypt.compare(otp, otpRecord.otpHash);
-    if (!isValid) {
-      res.status(400).json({ error: "Incorrect OTP. Please check and try again." });
-      return;
-    }
+      if (!otpRecord) {
+        // Dummy compare equalizes timing for the no-record path
+        await bcrypt.compare(otp, DUMMY_HASH);
+        return { status: "no_record" } as const;
+      }
 
-    // Look up the user
-    const [user] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.email, normalizedEmail))
-      .limit(1);
+      if (otpRecord.failedAttempts >= MAX_FAILED_ATTEMPTS) {
+        await tx.execute(sql`UPDATE password_reset_otps SET used = true WHERE id = ${otpRecord.id}`);
+        await bcrypt.compare(otp, DUMMY_HASH);
+        return { status: "locked" } as const;
+      }
 
-    if (!user) {
-      res.status(400).json({ error: "No account found for this email." });
-      return;
-    }
+      const isValid = await bcrypt.compare(otp, otpRecord.otpHash);
 
-    const passwordHash = await bcrypt.hash(newPassword, 10);
+      if (!isValid) {
+        const newFailedAttempts = otpRecord.failedAttempts + 1;
+        const shouldInvalidate = newFailedAttempts >= MAX_FAILED_ATTEMPTS;
+        await tx.execute(sql`
+          UPDATE password_reset_otps
+          SET    failed_attempts = ${newFailedAttempts}
+                 ${shouldInvalidate ? sql`, used = true` : sql``}
+          WHERE  id = ${otpRecord.id}
+        `);
+        return { status: "wrong_otp" } as const;
+      }
 
-    // Update password and mark OTP as used atomically
-    await db.transaction(async (tx) => {
-      await tx
-        .update(users)
-        .set({ passwordHash })
-        .where(eq(users.id, user.id));
+      // OTP verified — look up user and update password atomically with OTP consumption
+      const userResult = await tx.execute(sql`
+        SELECT id FROM users WHERE email = ${normalizedEmail} LIMIT 1
+      `);
+      const userId = (userResult.rows[0] as { id: number } | undefined)?.id;
 
-      await tx
-        .update(passwordResetOtps)
-        .set({ used: true })
-        .where(eq(passwordResetOtps.id, otpRecord.id));
+      if (!userId) {
+        return { status: "no_user" } as const;
+      }
+
+      const passwordHash = await bcrypt.hash(newPassword, 10);
+
+      await tx.execute(sql`UPDATE users SET password_hash = ${passwordHash} WHERE id = ${userId}`);
+      await tx.execute(sql`UPDATE password_reset_otps SET used = true WHERE id = ${otpRecord.id}`);
+
+      return { status: "valid", userId } as const;
     });
 
-    // Revoke all active sessions for this user so stolen cookies can't be reused
+    if (outcome.status !== "valid") {
+      res.status(400).json(INVALID_OTP_RESPONSE);
+      return;
+    }
+
+    // Revoke all active sessions so stolen cookies can't be reused
     await pool.query(
       `DELETE FROM user_sessions WHERE sess->>'userId' = $1`,
-      [String(user.id)]
+      [String(outcome.userId)]
     );
 
     res.json({ message: "Password updated successfully. You can now log in." });
