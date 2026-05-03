@@ -23,8 +23,11 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 # Start Metro on METRO_PORT
+# EXPO_BASE_URL tells expo-router to strip "/mobile" from incoming paths and
+# prefix generated navigation URLs with "/mobile" — no client-side URL hacks needed.
 EXPO_PACKAGER_PROXY_URL="https://$REPLIT_EXPO_DEV_DOMAIN" \
   EXPO_PUBLIC_DOMAIN="$REPLIT_DEV_DOMAIN" \
   EXPO_PUBLIC_REPL_ID="$REPL_ID" \
   REACT_NATIVE_PACKAGER_HOSTNAME="$REPLIT_DEV_DOMAIN" \
+  EXPO_BASE_URL="mobile" \
   pnpm exec expo start --localhost --port "$METRO_PORT"

@@ -2,17 +2,13 @@
  * Thin HTTP proxy between the Replit reverse proxy and Metro.
  *
  * Routing context:
- *  A) Replit path-based proxy: /mobile/* → this server (port 25516) without
- *     stripping the prefix. We strip BASE_PATH before forwarding to Metro.
- *     HTML responses need base-path-prefixed asset URLs so the browser can
- *     route them back through this proxy.
+ *  Replit path-based proxy: /mobile/* → this server (port 25516) without
+ *  stripping the prefix. We strip BASE_PATH before forwarding to Metro.
+ *  HTML responses need base-path-prefixed asset URLs so the browser can
+ *  route them back through this proxy.
  *
- *  B) Expo dev-domain (canvas preview): all paths → this server (port 25516)
- *     directly, no prefix. We forward as-is. Metro's default publicPath ("/")
- *     means asset URLs are already correct.
- *
- * So: only rewrite HTML asset paths + inject the history.replaceState fix
- * when the incoming request actually carries the BASE_PATH prefix (case A).
+ * expo-router handles the base URL natively via EXPO_BASE_URL=mobile env var
+ * (set when Metro starts). No client-side URL manipulation is needed.
  */
 
 import http from "http";
@@ -22,7 +18,8 @@ const METRO_PORT = parseInt(process.env.METRO_PORT || "25519", 10);
 const BASE_PATH = (process.env.BASE_PATH || "/mobile/").replace(/\/$/, "");
 // BASE_PATH without trailing slash: e.g. "/mobile"
 
-// Injected before the bundle — strips base path so expo-router sees "/"
+// Injected before the bundle — changes window.location so expo-router sees "/"
+// Uses replaceState (no navigation event fired) so the canvas wrapper doesn't detect the URL change.
 const BASE_PATH_SCRIPT = `<script>
 (function(){
   try{
@@ -93,7 +90,7 @@ function forwardRequest(clientReq, clientRes) {
         // Favicon and other root-relative hrefs (not already prefixed)
         .replace(/href="\/(?![\/]|mobile\/|http|_expo)/g, `href="${BASE_PATH}/`);
 
-      // Inject the history.replaceState fix before </head>
+      // Inject URL fix before </head> so expo-router sees "/" not "/mobile/"
       rewritten = rewritten.replace("</head>", BASE_PATH_SCRIPT + "</head>");
 
       const responseHeaders = { ...proxyRes.headers };
