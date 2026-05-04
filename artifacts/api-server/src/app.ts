@@ -6,6 +6,7 @@ import pinoHttp from "pino-http";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import path from "path";
 import fs from "fs";
+import http from "http";
 import router from "./routes";
 import webhookRouter from "./routes/webhook";
 import { logger } from "./lib/logger";
@@ -123,6 +124,39 @@ if (isProduction) {
     logger.warn({ frontendDist }, "Frontend dist directory not found — skipping static serving");
   }
 }
+
+// Expo Go manifest proxy — runs before body-parsing middleware so the raw
+// request can be piped. When Replit's URL bar QR code sends Expo Go to
+// exps://EXPO_DEV_DOMAIN (root /), we detect Expo-specific Accept headers and
+// forward the request to the mobile proxy (port 25516 at /mobile/), which
+// strips the prefix, talks to Metro, and rewrites manifest URLs to include /mobile/.
+// This makes both the Replit QR code AND a manual exps://EXPO_DEV_DOMAIN/mobile work.
+const MOBILE_PROXY_PORT = 25516;
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const accept = req.headers["accept"] || "";
+  const expoPlatform = req.headers["expo-platform"];
+  const isExpoGoRequest = accept.includes("application/expo") || !!expoPlatform;
+  if (!isExpoGoRequest) { next(); return; }
+
+  const targetPath = `/mobile${req.url === "/" ? "/" : req.url}`;
+  const options: http.RequestOptions = {
+    hostname: "localhost",
+    port: MOBILE_PROXY_PORT,
+    path: targetPath,
+    method: req.method,
+    headers: { ...req.headers, host: `localhost:${MOBILE_PROXY_PORT}` },
+  };
+
+  const proxyReq = http.request(options, (proxyRes) => {
+    res.writeHead(proxyRes.statusCode ?? 200, proxyRes.headers);
+    proxyRes.pipe(res, { end: true });
+  });
+  proxyReq.on("error", (err) => {
+    logger.error({ err }, "Expo manifest proxy error");
+    if (!res.headersSent) res.status(502).send("Bad Gateway");
+  });
+  req.pipe(proxyReq, { end: true });
+});
 
 // Webhook routes must receive the raw request body for HMAC signature validation.
 // Mount them BEFORE express.json() using express.raw() so the body is not parsed.

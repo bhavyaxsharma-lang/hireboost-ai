@@ -4,11 +4,16 @@
  * Routing context:
  *  Replit path-based proxy: /mobile/* → this server (port 25516) without
  *  stripping the prefix. We strip BASE_PATH before forwarding to Metro.
- *  HTML responses need base-path-prefixed asset URLs so the browser can
- *  route them back through this proxy.
  *
- * expo-router routing on web is handled by the history.replaceState injection
- * below (changes /mobile/ → / before the bundle runs). No EXPO_BASE_URL needed.
+ * Web canvas (browser):
+ *  HTML responses: asset URLs are rewritten to include BASE_PATH prefix,
+ *  and history.replaceState is injected so expo-router sees "/" not "/mobile/".
+ *
+ * Native Expo Go:
+ *  Metro generates asset/bundle URLs without the /mobile/ prefix (just the hostname).
+ *  We intercept JSON manifest responses and rewrite all
+ *    https://EXPO_DEV_DOMAIN/          →  https://EXPO_DEV_DOMAIN/mobile/
+ *  so Expo Go fetches bundle + assets through /mobile/ → shared proxy → back here → Metro.
  */
 
 import http from "http";
@@ -16,10 +21,10 @@ import http from "http";
 const PROXY_PORT = parseInt(process.env.PORT || "25516", 10);
 const METRO_PORT = parseInt(process.env.METRO_PORT || "25519", 10);
 const BASE_PATH = (process.env.BASE_PATH || "/mobile/").replace(/\/$/, "");
+const EXPO_DEV_DOMAIN = process.env.EXPO_DEV_DOMAIN || "";
 // BASE_PATH without trailing slash: e.g. "/mobile"
 
 // Injected before the bundle — changes window.location so expo-router sees "/"
-// Uses replaceState (no navigation event fired) so the canvas wrapper doesn't detect the URL change.
 const BASE_PATH_SCRIPT = `<script>
 (function(){
   try{
@@ -34,6 +39,10 @@ const BASE_PATH_SCRIPT = `<script>
 })();
 </script>`;
 
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function hasBasePrefix(url) {
   return url.startsWith(BASE_PATH + "/") || url === BASE_PATH;
 }
@@ -41,13 +50,18 @@ function hasBasePrefix(url) {
 function stripBase(url) {
   if (url.startsWith(BASE_PATH + "/")) return url.slice(BASE_PATH.length);
   if (url === BASE_PATH) return "/";
-  return url; // pass through as-is
+  return url;
 }
 
 function forwardRequest(clientReq, clientRes) {
-  // Respond to health-check paths immediately without hitting Metro
   const rawPath = clientReq.url.split("?")[0];
-  if (rawPath === "/status" || rawPath === `${BASE_PATH}/status` || rawPath === `${BASE_PATH}status`) {
+
+  // Health-check: respond immediately
+  if (
+    rawPath === "/status" ||
+    rawPath === `${BASE_PATH}/status` ||
+    rawPath === `${BASE_PATH}status`
+  ) {
     clientRes.writeHead(200, { "content-type": "text/plain" });
     clientRes.end("ok");
     return;
@@ -56,45 +70,85 @@ function forwardRequest(clientReq, clientRes) {
   const needsRewrite = hasBasePrefix(clientReq.url);
   const metroPath = needsRewrite ? stripBase(clientReq.url) : clientReq.url;
 
+  // Strip the Origin header before forwarding to Metro. Metro's CorsMiddleware
+  // rejects requests whose Origin is not localhost. Since we're a trusted proxy
+  // on the same machine, we drop the external Origin so Metro sees a local-only
+  // connection and allows the request.
+  const forwardHeaders = { ...clientReq.headers, host: `localhost:${METRO_PORT}` };
+  delete forwardHeaders["origin"];
+
   const options = {
     hostname: "localhost",
     port: METRO_PORT,
     path: metroPath,
     method: clientReq.method,
-    headers: { ...clientReq.headers, host: `localhost:${METRO_PORT}` },
+    headers: forwardHeaders,
   };
 
   const proxyReq = http.request(options, (proxyRes) => {
     const contentType = proxyRes.headers["content-type"] || "";
     const isHtml = contentType.includes("text/html");
 
-    // For non-HTML or for requests that don't carry the base prefix,
-    // stream through without modification.
-    if (!isHtml || !needsRewrite) {
+    // Detect Expo manifest: JSON/multipart response on a /mobile/ prefixed request.
+    // Metro generates asset + bundle URLs with just the hostname (no /mobile/ prefix).
+    // We rewrite them to include /mobile/ so Expo Go routes back through shared proxy → us → Metro.
+    // Metro returns "application/expo+json" (not "application/json")
+    const isManifest =
+      needsRewrite &&
+      EXPO_DEV_DOMAIN &&
+      (contentType.includes("json") || contentType.includes("multipart/mixed"));
+
+    // Stream through unchanged for binary/JS/other content
+    if (!isHtml && !isManifest) {
       clientRes.writeHead(proxyRes.statusCode, proxyRes.headers);
       proxyRes.pipe(clientRes, { end: true });
       return;
     }
 
-    // Collect HTML, rewrite asset paths to include BASE_PATH, inject fix script
+    // Collect body for rewriting
     let body = "";
     proxyRes.setEncoding("utf8");
-    proxyRes.on("data", (chunk) => { body += chunk; });
+    proxyRes.on("data", (chunk) => {
+      body += chunk;
+    });
     proxyRes.on("end", () => {
-      let rewritten = body
-        // Bundle entry script
-        .replace(/src="\/node_modules\//g, `src="${BASE_PATH}/node_modules/`)
-        // Expo internal static assets
-        .replace(/src="\/_expo\//g, `src="${BASE_PATH}/_expo/`)
-        .replace(/href="\/_expo\//g, `href="${BASE_PATH}/_expo/`)
-        // Favicon and other root-relative hrefs (not already prefixed)
-        .replace(/href="\/(?![\/]|mobile\/|http|_expo)/g, `href="${BASE_PATH}/`);
+      let rewritten = body;
 
-      // Inject URL fix before </head> so expo-router sees "/" not "/mobile/"
-      rewritten = rewritten.replace("</head>", BASE_PATH_SCRIPT + "</head>");
+      if (isHtml) {
+        // Rewrite root-relative asset URLs to include BASE_PATH
+        rewritten = body
+          .replace(/src="\/node_modules\//g, `src="${BASE_PATH}/node_modules/`)
+          .replace(/src="\/_expo\//g, `src="${BASE_PATH}/_expo/`)
+          .replace(/href="\/_expo\//g, `href="${BASE_PATH}/_expo/`)
+          .replace(
+            /href="\/(?![\/]|mobile\/|http|_expo)/g,
+            `href="${BASE_PATH}/`
+          );
+        // Inject URL-fix script before </head>
+        rewritten = rewritten.replace("</head>", BASE_PATH_SCRIPT + "</head>");
+      }
+
+      if (isManifest) {
+        // Rewrite "https://EXPO_DEV_DOMAIN/" → "https://EXPO_DEV_DOMAIN/mobile/"
+        // for any path that doesn't already start with "mobile/"
+        const pattern = new RegExp(
+          `https://${escapeRegex(EXPO_DEV_DOMAIN)}/(?!mobile/)`,
+          "g"
+        );
+        rewritten = rewritten.replace(
+          pattern,
+          `https://${EXPO_DEV_DOMAIN}/mobile/`
+        );
+        console.log(
+          `[web-proxy] Rewrote manifest URLs for native Expo Go (${EXPO_DEV_DOMAIN})`
+        );
+      }
 
       const responseHeaders = { ...proxyRes.headers };
-      responseHeaders["content-length"] = Buffer.byteLength(rewritten, "utf8").toString();
+      responseHeaders["content-length"] = Buffer.byteLength(
+        rewritten,
+        "utf8"
+      ).toString();
       delete responseHeaders["transfer-encoding"];
 
       clientRes.writeHead(proxyRes.statusCode, responseHeaders);
@@ -104,7 +158,12 @@ function forwardRequest(clientReq, clientRes) {
 
   proxyReq.on("error", (err) => {
     if (err.code !== "ECONNREFUSED") {
-      console.error("[web-proxy] upstream error:", err.message, "for", clientReq.url);
+      console.error(
+        "[web-proxy] upstream error:",
+        err.message,
+        "for",
+        clientReq.url
+      );
     }
     if (!clientRes.headersSent) clientRes.writeHead(502);
     clientRes.end("Bad Gateway");
@@ -118,19 +177,24 @@ function forwardUpgrade(clientReq, clientSocket, head) {
     ? stripBase(clientReq.url)
     : clientReq.url;
 
+  const wsHeaders = { ...clientReq.headers, host: `localhost:${METRO_PORT}` };
+  delete wsHeaders["origin"];
+
   const target = http.request({
     hostname: "localhost",
     port: METRO_PORT,
     path: metroPath,
     method: clientReq.method,
-    headers: { ...clientReq.headers, host: `localhost:${METRO_PORT}` },
+    headers: wsHeaders,
   });
 
   target.on("upgrade", (res, metroSock, upgradeHead) => {
     const headerLines = Object.entries(res.headers)
       .map(([k, v]) => `${k}: ${v}`)
       .join("\r\n");
-    clientSocket.write(`HTTP/1.1 101 Switching Protocols\r\n${headerLines}\r\n\r\n`);
+    clientSocket.write(
+      `HTTP/1.1 101 Switching Protocols\r\n${headerLines}\r\n\r\n`
+    );
     if (upgradeHead?.length) metroSock.unshift(upgradeHead);
     metroSock.pipe(clientSocket);
     clientSocket.pipe(metroSock);
@@ -146,5 +210,7 @@ const server = http.createServer(forwardRequest);
 server.on("upgrade", forwardUpgrade);
 
 server.listen(PROXY_PORT, () => {
-  console.log(`[web-proxy] :${PROXY_PORT} → Metro :${METRO_PORT}  base="${BASE_PATH}"`);
+  console.log(
+    `[web-proxy] :${PROXY_PORT} → Metro :${METRO_PORT}  base="${BASE_PATH}"  expo-domain="${EXPO_DEV_DOMAIN}"`
+  );
 });

@@ -3,15 +3,16 @@ previewPath = "/mobile/"
 title = "HireBoost AI — Android"
 version = "1.0.0"
 id = "artifacts/hireboost-mobile"
+router = "expo-domain"
 
 [[integratedSkills]]
 name = "expo"
 version = "1.0.0"
 
 [[services]]
-ensurePreviewReachable = "/mobile/status"
+ensurePreviewReachable = "/status"
 name = "expo"
-paths = [ "/mobile/" ]
+paths = [ "/mobile/", "/assets" ]
 localPort = 25516
 
 [services.development]
