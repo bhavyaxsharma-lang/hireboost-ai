@@ -33,9 +33,13 @@ trap cleanup EXIT INT TERM
 #  - Native Android: setting EXPO_BASE_URL="mobile" would be inlined into the
 #    native bundle too (Metro serves all platforms), causing expo-router to
 #    prefix every route with "/mobile/" → all routes 404 → crash.
+# REACT_NATIVE_PACKAGER_HOSTNAME must be REPLIT_EXPO_DEV_DOMAIN (not REPLIT_DEV_DOMAIN).
+# REPLIT_DEV_DOMAIN routes through the shared proxy, which sends "/" to the API server.
+# REPLIT_EXPO_DEV_DOMAIN routes directly to localPort 25516 (our Metro proxy), so
+# Expo Go asset requests (/assets/, /hot, /message) reach Metro instead of the API server.
 EXPO_PACKAGER_PROXY_URL="https://$REPLIT_EXPO_DEV_DOMAIN" \
+  REACT_NATIVE_PACKAGER_HOSTNAME="$REPLIT_EXPO_DEV_DOMAIN" \
   EXPO_PUBLIC_DOMAIN="$REPLIT_DEV_DOMAIN" \
   EXPO_PUBLIC_REPL_ID="$REPL_ID" \
-  REACT_NATIVE_PACKAGER_HOSTNAME="$REPLIT_DEV_DOMAIN" \
   CI=1 \
   pnpm exec expo start --localhost --port "$METRO_PORT"
