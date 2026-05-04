@@ -27,11 +27,15 @@ trap cleanup EXIT INT TERM
 
 # Start Metro on METRO_PORT
 # --yes: answer "yes" to any interactive prompts (e.g. port-in-use)
-# EXPO_BASE_URL: tells expo-router to strip "/mobile" from paths natively
+# NOTE: EXPO_BASE_URL is intentionally NOT set here.
+#  - Web canvas: the proxy injects history.replaceState + rewrites asset URLs,
+#    so expo-router on web sees "/" and routes correctly without a base URL.
+#  - Native Android: setting EXPO_BASE_URL="mobile" would be inlined into the
+#    native bundle too (Metro serves all platforms), causing expo-router to
+#    prefix every route with "/mobile/" → all routes 404 → crash.
 EXPO_PACKAGER_PROXY_URL="https://$REPLIT_EXPO_DEV_DOMAIN" \
   EXPO_PUBLIC_DOMAIN="$REPLIT_DEV_DOMAIN" \
   EXPO_PUBLIC_REPL_ID="$REPL_ID" \
   REACT_NATIVE_PACKAGER_HOSTNAME="$REPLIT_DEV_DOMAIN" \
-  EXPO_BASE_URL="mobile" \
   CI=1 \
   pnpm exec expo start --localhost --port "$METRO_PORT"

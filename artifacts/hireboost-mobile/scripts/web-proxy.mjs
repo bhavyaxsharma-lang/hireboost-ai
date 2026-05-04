@@ -7,8 +7,8 @@
  *  HTML responses need base-path-prefixed asset URLs so the browser can
  *  route them back through this proxy.
  *
- * expo-router handles the base URL natively via EXPO_BASE_URL=mobile env var
- * (set when Metro starts). No client-side URL manipulation is needed.
+ * expo-router routing on web is handled by the history.replaceState injection
+ * below (changes /mobile/ → / before the bundle runs). No EXPO_BASE_URL needed.
  */
 
 import http from "http";
