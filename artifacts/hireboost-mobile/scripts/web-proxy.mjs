@@ -17,6 +17,14 @@
  */
 
 import http from "http";
+import crypto from "crypto";
+
+function computeWsAccept(key) {
+  return crypto
+    .createHash("sha1")
+    .update(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
+    .digest("base64");
+}
 
 const PROXY_PORT = parseInt(process.env.PORT || "25516", 10);
 const METRO_PORT = parseInt(process.env.METRO_PORT || "25519", 10);
@@ -130,15 +138,33 @@ function forwardRequest(clientReq, clientRes) {
 
       if (isManifest) {
         // Rewrite "https://EXPO_DEV_DOMAIN/" → "https://EXPO_DEV_DOMAIN/mobile/"
-        // for any path that doesn't already start with "mobile/"
-        const pattern = new RegExp(
+        // for any absolute URL that doesn't already include the /mobile/ prefix.
+        const urlPattern = new RegExp(
           `https://${escapeRegex(EXPO_DEV_DOMAIN)}/(?!mobile/)`,
           "g"
         );
         rewritten = rewritten.replace(
-          pattern,
+          urlPattern,
           `https://${EXPO_DEV_DOMAIN}/mobile/`
         );
+
+        // Fix "hostUri" and "debuggerHost" — these are bare hostname strings
+        // (no https:// prefix) that Expo Go uses to reconnect to the dev server
+        // when reloading or recovering from an error.  Without /mobile they hit
+        // the root of the expo domain which has no handler → "Package not running".
+        const escaped = escapeRegex(EXPO_DEV_DOMAIN);
+        rewritten = rewritten
+          // "hostUri":"EXPO_DEV_DOMAIN"  →  "hostUri":"EXPO_DEV_DOMAIN/mobile"
+          .replace(
+            new RegExp(`("hostUri"\\s*:\\s*")${escaped}(?!/mobile)(")`,"g"),
+            `$1${EXPO_DEV_DOMAIN}/mobile$2`
+          )
+          // "debuggerHost":"EXPO_DEV_DOMAIN"  →  "debuggerHost":"EXPO_DEV_DOMAIN/mobile"
+          .replace(
+            new RegExp(`("debuggerHost"\\s*:\\s*")${escaped}(?!/mobile)(")`,"g"),
+            `$1${EXPO_DEV_DOMAIN}/mobile$2`
+          );
+
         console.log(
           `[web-proxy] Rewrote manifest URLs for native Expo Go (${EXPO_DEV_DOMAIN})`
         );
@@ -173,6 +199,23 @@ function forwardRequest(clientReq, clientRes) {
 }
 
 function forwardUpgrade(clientReq, clientSocket, head) {
+  // Browser-initiated WebSocket connections (HMR for the web canvas preview).
+  // The Expo web bundle sends registerEntryPoints with /mobile/-prefixed URLs.
+  // Forwarding these to Metro causes it to crash (UnableToResolveError on the
+  // entry path). Instead, absorb the connection: complete the WS handshake so
+  // the browser doesn't error, but don't forward any messages to Metro.
+  const ua = clientReq.headers["user-agent"] || "";
+  if (ua.includes("Mozilla")) {
+    const key = clientReq.headers["sec-websocket-key"] || "";
+    const accept = computeWsAccept(key);
+    clientSocket.write(
+      `HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`
+    );
+    clientSocket.on("error", () => {});
+    clientSocket.on("data", () => {});
+    return;
+  }
+
   const metroPath = hasBasePrefix(clientReq.url)
     ? stripBase(clientReq.url)
     : clientReq.url;
