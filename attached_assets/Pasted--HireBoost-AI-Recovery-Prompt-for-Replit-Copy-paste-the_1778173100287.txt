@@ -1,0 +1,225 @@
+# HireBoost AI – Recovery Prompt for Replit
+
+Copy-paste the below prompt directly into Replit AI chat.
+
+---
+
+# MASTER RECOVERY PROMPT FOR REPLIT
+
+I accidentally changed my existing working web application architecture while trying to convert it into an Android app.
+
+Current situation:
+
+* I originally created a web application named HireBoost AI.
+* That original web app was connected to my backend, database, authentication, APIs, and hosted links.
+* I already generated an Android AAB bundle from that original web app and uploaded Version 20 to Google Play Console closed testing.
+* Later, I mistakenly asked Replit to convert the project into a native Android app, and now the original web application structure/workflow is broken.
+* I do NOT want a separate native Android project.
+* I want my original web app restored and preserved.
+
+IMPORTANT GOAL:
+I only want:
+
+1. Original web application restored.
+2. Existing backend/database/API/authentication preserved.
+3. Android app should simply load the existing web app using WebView/TWA.
+4. Do NOT recreate backend.
+5. Do NOT change existing routes.
+6. Do NOT delete existing files.
+7. Do NOT migrate framework.
+8. Do NOT replace hosting.
+9. Keep compatibility with my Google Play Console package.
+10. Generate stable Android AAB from existing web app.
+
+TASKS TO PERFORM:
+
+STEP 1 – Analyze current project
+
+* Scan the full project structure.
+* Identify which files were modified during Android conversion.
+* Detect original web app entry point.
+* Detect frontend framework (React/Vite/Next.js/etc).
+* Detect backend services and environment variables.
+* Detect existing database connections.
+* Detect deployment configuration.
+
+STEP 2 – Restore original web application
+
+* Restore original web application routing and startup behavior.
+* Ensure the app runs correctly in browser.
+* Ensure authentication/login/signup works.
+* Ensure API integrations work.
+* Ensure database connections work.
+* Ensure payment integrations work if present.
+* Remove only unnecessary Android-native code that broke the web app.
+* Do NOT remove production functionality.
+
+STEP 3 – Create SAFE Android wrapper
+Instead of converting the whole project into Android-native:
+
+* Create a lightweight Android wrapper.
+* Use Android WebView or Trusted Web Activity (TWA).
+* Load my deployed HireBoost AI website URL.
+* Keep package name same as Play Store version.
+* Keep version continuity compatible with Version 20.
+* Add splash screen.
+* Add internet permissions.
+* Enable file upload support.
+* Enable microphone permissions if required.
+* Enable camera permissions if required.
+* Enable notification permissions if required.
+* Ensure mobile responsiveness.
+
+STEP 4 – Build and release setup
+
+* Generate production-ready Android build configuration.
+* Configure signing instructions.
+* Generate AAB bundle.
+* Ensure compatibility with Google Play Store update process.
+* Ensure package name and signing remain consistent.
+
+STEP 5 – Prevent future breaking changes
+
+* Separate web app and Android wrapper into different folders.
+* Example:
+  /web-app
+  /android-wrapper
+* Ensure future Android changes do NOT affect web app.
+* Add README instructions.
+* Add backup recommendations.
+* Add deployment instructions.
+
+STEP 6 – Final verification
+Before making changes:
+
+* Create backup/snapshot of current project.
+* Explain every major change before applying.
+* Show which files are modified.
+* Do NOT overwrite production environment variables.
+* Do NOT delete any database data.
+
+After restoration:
+
+* Run the web app locally.
+* Verify all routes.
+* Verify login/signup.
+* Verify API calls.
+* Verify mobile responsiveness.
+* Verify Android build generation.
+
+Finally provide:
+
+1. Restored project structure.
+2. Android wrapper structure.
+3. Steps to generate future AAB safely.
+4. Steps to deploy web app separately.
+5. Git backup instructions.
+
+IMPORTANT:
+Never again convert the full web app into a native Android project.
+The Android app should simply act as a wrapper around the deployed web application.
+
+---
+
+# AFTER REPLIT RESPONDS
+
+If Replit asks questions, answer like this:
+
+## If asked for website URL:
+
+Provide your deployed HireBoost AI URL.
+
+## If asked package name:
+
+Use the SAME package name already used in Google Play Console.
+
+## If asked whether to overwrite files:
+
+Answer:
+"No. Create backup first and preserve original web app."
+
+## If asked framework preference:
+
+Answer:
+"Keep existing framework unchanged."
+
+---
+
+# VERY IMPORTANT NEXT STEPS
+
+## 1. CREATE BACKUP FIRST
+
+Before doing anything:
+
+* Open Replit
+* Click 3 dots menu
+* Duplicate Repl
+* Rename backup as:
+  HireBoostAI_Backup_Safe
+
+## 2. USE GITHUB BACKUP
+
+Connect GitHub immediately.
+
+Recommended structure:
+
+* Main branch = Stable Production
+* Dev branch = Testing
+
+## 3. DO NOT REBUILD FROM SCRATCH
+
+You already have:
+
+* Working Play Store package
+* Existing version history
+* Existing backend
+* Existing users
+
+So only repair architecture.
+
+## 4. BEST LONG-TERM STRUCTURE
+
+Recommended architecture:
+
+Frontend Web App
+↓
+Hosted on:
+
+* Vercel OR Netlify OR Firebase Hosting
+
+Backend APIs
+↓
+Hosted separately:
+
+* Render OR Railway OR Supabase
+
+Android App
+↓
+Simple WebView wrapper
+
+This is cheaper, safer, and easier to maintain.
+
+---
+
+# FUTURE SAFE PROCESS FOR PLAY STORE UPDATES
+
+For every future app update:
+
+1. Update web app only.
+2. Test website in browser.
+3. Android wrapper usually needs NO change.
+4. Only create new AAB if:
+
+   * permissions changed
+   * splash screen changed
+   * package-level change needed
+
+This avoids breaking production.
+
+---
+
+# IF REPLIT STILL FAILS
+
+Use this additional emergency prompt:
+
+"Restore project to last stable working web application state before Android-native conversion changes. Preserve all APIs, backend logic, routes, database integrations, authentication, deployment configuration, and environment variables. Remove only Android-native modifications that interfere with web deployment. Then create a separate Android WebView wrapper project instead of modifying the original web app."
