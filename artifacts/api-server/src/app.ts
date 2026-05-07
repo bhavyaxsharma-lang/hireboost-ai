@@ -79,21 +79,36 @@ if (process.env.ALLOWED_ORIGIN) {
     );
   }
 } else {
-  // Development: use the Replit dev domain so the Vite dev server can reach the API.
+  // Development: allow the main Replit dev domain (web app) and the Expo dev
+  // domain (mobile canvas). Both need to reach the API from different origins.
   if (process.env.REPLIT_DEV_DOMAIN) {
     allowedOriginsSet.add(`https://${process.env.REPLIT_DEV_DOMAIN}`);
   } else {
     allowedOriginsSet.add("http://localhost:5173");
   }
+  if (process.env.REPLIT_EXPO_DEV_DOMAIN) {
+    allowedOriginsSet.add(`https://${process.env.REPLIT_EXPO_DEV_DOMAIN}`);
+  }
 }
 
-// Use the first entry as the single CORS origin (browsers require one explicit
-// value when credentials are included).
-const allowedOrigin = allowedOriginsSet.size > 0 ? [...allowedOriginsSet][0] : null;
-
-if (allowedOrigin) {
-  app.use(cors({ origin: allowedOrigin, credentials: true }));
-}
+// CORS: reflect the requesting origin back when it is in the allowlist so that
+// both the web app (main dev domain) and the mobile canvas (Expo dev domain)
+// can make credentialed requests in development. A function origin is required
+// for multiple allowed origins — a static string only matches one.
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no Origin (same-origin, curl, server-to-server).
+      if (!origin) { callback(null, true); return; }
+      if (allowedOriginsSet.has(origin)) {
+        callback(null, origin);
+      } else {
+        callback(null, false);
+      }
+    },
+    credentials: true,
+  })
+);
 
 // Defense-in-depth: for state-changing methods, reject any request whose
 // Origin header is present but does not belong to an allowed origin.
