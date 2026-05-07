@@ -97,14 +97,19 @@ function forwardRequest(clientReq, clientRes) {
     const contentType = proxyRes.headers["content-type"] || "";
     const isHtml = contentType.includes("text/html");
 
-    // Detect Expo manifest: JSON/multipart response on a /mobile/ prefixed request.
-    // Metro generates asset + bundle URLs with just the hostname (no /mobile/ prefix).
-    // We rewrite them to include /mobile/ so Expo Go routes back through shared proxy → us → Metro.
-    // Metro returns "application/expo+json" (not "application/json")
+    // Detect Expo manifest: an application/expo+json or multipart/mixed response
+    // when the client sent an Expo manifest Accept header.
+    // Triggered for /mobile/ prefixed paths AND for root "/" requests (which Expo Go
+    // hits when reconnecting after an error using just the bare expo domain URL).
+    const clientAccept = clientReq.headers["accept"] || "";
+    const isExpoAccept =
+      clientAccept.includes("application/expo+json") ||
+      clientAccept.includes("multipart/mixed");
     const isManifest =
-      needsRewrite &&
       EXPO_DEV_DOMAIN &&
-      (contentType.includes("json") || contentType.includes("multipart/mixed"));
+      (contentType.includes("application/expo+json") ||
+        contentType.includes("multipart/mixed")) &&
+      (needsRewrite || isExpoAccept);
 
     // Stream through unchanged for binary/JS/other content
     if (!isHtml && !isManifest) {
