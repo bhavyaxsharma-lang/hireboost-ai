@@ -158,6 +158,33 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   req.pipe(proxyReq, { end: true });
 });
 
+// Development-only: proxy non-API, non-Expo requests to the Vite dev server.
+// The API server's artifact.toml must claim "/" for production (to serve the
+// React SPA). In development the shared proxy may route "/" here instead of
+// to Vite (port 22412), leaving the frontend unreachable. This middleware
+// transparently forwards those requests so the preview pane always works.
+if (!isProduction) {
+  const VITE_PORT = parseInt(process.env.VITE_PORT || "22412", 10);
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.path.startsWith("/api")) { next(); return; }
+    const proxyReq = http.request(
+      {
+        hostname: "localhost",
+        port: VITE_PORT,
+        path: req.url,
+        method: req.method,
+        headers: { ...req.headers, host: `localhost:${VITE_PORT}` },
+      },
+      (proxyRes) => {
+        res.writeHead(proxyRes.statusCode ?? 200, proxyRes.headers);
+        proxyRes.pipe(res, { end: true });
+      }
+    );
+    proxyReq.on("error", () => next());
+    req.pipe(proxyReq, { end: true });
+  });
+}
+
 // Webhook routes must receive the raw request body for HMAC signature validation.
 // Mount them BEFORE express.json() using express.raw() so the body is not parsed.
 app.use("/api/webhooks", express.raw({ type: "application/json", limit: "256kb" }), webhookRouter);
