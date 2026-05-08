@@ -11,6 +11,8 @@ import router from "./routes";
 import webhookRouter from "./routes/webhook";
 import { logger } from "./lib/logger";
 import { verifyToken } from "./lib/jwt";
+import { db, users } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const app: Express = express();
 
@@ -351,26 +353,55 @@ app.use(
   }),
 );
 
-// Bearer token middleware — runs AFTER session middleware so req.session is
-// already initialized. Mobile clients send JWT in Authorization: Bearer header.
-// If no session userId is set yet, we verify the JWT and inject the userId so
-// all downstream route handlers work identically for both auth mechanisms.
+// Populate req.userId from the active server session. This runs before the
+// bearer middleware so cookie-authenticated requests are resolved first.
 app.use((req: Request, _res: Response, next: NextFunction) => {
+  if (req.session?.userId) {
+    req.userId = req.session.userId;
+  }
+  next();
+});
+
+// Bearer token middleware — runs AFTER the session middleware and the session
+// userId sync above. Mobile clients send a JWT in the Authorization: Bearer
+// header. When no session user is already set, we verify the JWT signature and
+// then check the token version stored in the database so that logout and
+// password-reset can immediately invalidate all outstanding tokens.
+//
+// IMPORTANT: We deliberately do NOT write to req.session here. Writing
+// req.session.userId would mark the session as modified and cause
+// express-session to persist a new row in user_sessions for every
+// bearer-only request, enabling storage-amplification denial of service.
+app.use(async (req: Request, _res: Response, next: NextFunction) => {
   const auth = req.headers.authorization;
-  if (auth?.startsWith("Bearer ") && !req.session?.userId) {
+  if (auth?.startsWith("Bearer ") && !req.userId) {
     const token = auth.slice(7);
     const payload = verifyToken(token);
     if (payload) {
-      req.session.userId = payload.userId;
+      try {
+        const [user] = await db
+          .select({ tokenVersion: users.tokenVersion })
+          .from(users)
+          .where(eq(users.id, payload.userId))
+          .limit(1);
+        // Only authenticate if the token version matches the current DB value.
+        // A mismatch means the token was invalidated by a logout or password reset.
+        if (user && user.tokenVersion === payload.tokenVersion) {
+          req.userId = payload.userId;
+        }
+      } catch (err) {
+        // DB error — deny bearer auth on this request rather than crashing.
+        logger.warn({ err }, "Bearer middleware: DB lookup failed, denying bearer auth");
+      }
     }
   }
   next();
 });
 
 // Per-user AI rate limit: 10 requests per minute per authenticated user.
-// This runs AFTER session middleware so req.session.userId is available.
+// This runs AFTER the auth middleware chain so req.userId is available.
 // Combined with the IP-based aiLimiter above, an attacker cannot bypass the
-// cap simply by rotating source IPs — every session identity is tracked
+// cap simply by rotating source IPs — every user identity is tracked
 // independently as well.
 const userAiLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -378,8 +409,7 @@ const userAiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
-    const userId = (req.session as { userId?: number } | undefined)?.userId;
-    return userId ? `user:${userId}` : `ip:${ipKeyGenerator(req)}`;
+    return req.userId ? `user:${req.userId}` : `ip:${ipKeyGenerator(req)}`;
   },
   message: { error: "Too many AI requests, please slow down." },
 });

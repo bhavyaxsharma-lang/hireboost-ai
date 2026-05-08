@@ -3,7 +3,7 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db } from "@workspace/db";
 import { users } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import {
   RegisterUserBody,
   LoginUserBody,
@@ -78,8 +78,10 @@ router.post("/login", async (req, res) => {
     // Set session (for web clients)
     req.session.userId = user.id;
 
-    // Sign a JWT token for mobile clients
-    const token = signToken({ userId: user.id, name: user.name, email: user.email });
+    // Sign a JWT token for mobile clients. The tokenVersion is embedded so the
+    // bearer middleware can verify it against the database and immediately reject
+    // tokens that were invalidated by a subsequent logout or password reset.
+    const token = signToken({ userId: user.id, name: user.name, email: user.email, tokenVersion: user.tokenVersion });
 
     res.json({
       user: {
@@ -98,7 +100,22 @@ router.post("/login", async (req, res) => {
 });
 
 // POST /auth/logout
-router.post("/logout", (req, res) => {
+// Works for both web (session) and mobile (bearer) clients.
+// Increments the user's tokenVersion in the database so all previously issued
+// JWTs are immediately rejected by the bearer middleware on subsequent requests.
+router.post("/logout", async (req, res) => {
+  const userId = req.userId;
+  try {
+    if (userId) {
+      await db
+        .update(users)
+        .set({ tokenVersion: sql`${users.tokenVersion} + 1` })
+        .where(eq(users.id, userId));
+    }
+  } catch (err) {
+    req.log.error({ err }, "Error invalidating user tokens on logout");
+    // Continue with session destruction even if token invalidation fails
+  }
   req.session.destroy(() => {
     res.json({ message: "Logged out successfully" });
   });
@@ -106,13 +123,13 @@ router.post("/logout", (req, res) => {
 
 // GET /auth/me
 router.get("/me", async (req, res) => {
-  if (!req.session.userId) {
+  if (!req.userId) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
 
   try {
-    const [user] = await db.select().from(users).where(eq(users.id, req.session.userId)).limit(1);
+    const [user] = await db.select().from(users).where(eq(users.id, req.userId)).limit(1);
     if (!user) {
       res.status(401).json({ error: "User not found" });
       return;

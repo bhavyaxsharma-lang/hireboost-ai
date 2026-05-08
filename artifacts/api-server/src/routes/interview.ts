@@ -41,7 +41,7 @@ function formatSession(session: typeof interviewSessions.$inferSelect, questions
 
 // GET /interview/sessions
 router.get("/sessions", async (req, res) => {
-  const userId = req.session?.userId ?? null;
+  const userId = req.userId ?? null;
   if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
     return;
@@ -77,7 +77,7 @@ router.get("/sessions", async (req, res) => {
 
 // POST /interview/sessions - create session + generate questions
 router.post("/sessions", async (req, res) => {
-  const userId = req.session?.userId ?? null;
+  const userId = req.userId ?? null;
   if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
     return;
@@ -153,7 +153,7 @@ Mix behavioral, technical, and situational questions appropriate for the role.`;
 
 // GET /interview/sessions/:id
 router.get("/sessions/:id", async (req, res) => {
-  const userId = req.session?.userId ?? null;
+  const userId = req.userId ?? null;
   if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
     return;
@@ -187,7 +187,7 @@ router.get("/sessions/:id", async (req, res) => {
 
 // POST /interview/sessions/:id/answer - submit answer and get AI feedback
 router.post("/sessions/:id/answer", async (req, res) => {
-  const userId = req.session?.userId ?? null;
+  const userId = req.userId ?? null;
   if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
     return;
@@ -322,7 +322,7 @@ Return ONLY valid JSON with exactly these fields:
 
 // POST /interview/sessions/:id/complete - complete session
 router.post("/sessions/:id/complete", async (req, res) => {
-  const userId = req.session?.userId ?? null;
+  const userId = req.userId ?? null;
   if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
     return;

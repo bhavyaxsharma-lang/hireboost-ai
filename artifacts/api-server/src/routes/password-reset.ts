@@ -195,7 +195,7 @@ router.post("/verify-otp-reset", async (req, res) => {
 
       const passwordHash = await bcrypt.hash(newPassword, 10);
 
-      await tx.execute(sql`UPDATE users SET password_hash = ${passwordHash} WHERE id = ${userId}`);
+      await tx.execute(sql`UPDATE users SET password_hash = ${passwordHash}, token_version = token_version + 1 WHERE id = ${userId}`);
       await tx.execute(sql`UPDATE password_reset_otps SET used = true WHERE id = ${otpRecord.id}`);
 
       return { status: "valid", userId } as const;

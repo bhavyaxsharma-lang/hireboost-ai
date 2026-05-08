@@ -30,7 +30,7 @@ async function getUnusedPayment(userId: number) {
 
 // GET /resume/rewrite-status — returns free rewrite usage and credit availability
 router.get("/rewrite-status", async (req, res) => {
-  const userId = req.session?.userId ?? null;
+  const userId = req.userId ?? null;
   if (!userId) {
     res.json({ freeUsed: 0, freeLimit: FREE_REWRITE_LIMIT, hasPaidCredit: false });
     return;
@@ -42,7 +42,7 @@ router.get("/rewrite-status", async (req, res) => {
 
 // GET /resume/daily-usage — returns how many analyses the user has done today
 router.get("/daily-usage", async (req, res) => {
-  const userId = req.session?.userId ?? null;
+  const userId = req.userId ?? null;
 
   let used = 0;
   if (userId) {
@@ -77,7 +77,7 @@ router.post("/upload", async (req, res) => {
 
 // POST /resume/analyze — AI analysis (requires authentication)
 router.post("/analyze", async (req, res) => {
-  const userId = req.session?.userId ?? null;
+  const userId = req.userId ?? null;
   if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
     return;
@@ -174,7 +174,7 @@ Return a JSON object with exactly these fields:
 
 // GET /resume/history — list past analyses
 router.get("/history", async (req, res) => {
-  const userId = req.session?.userId ?? null;
+  const userId = req.userId ?? null;
   if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
     return;
@@ -202,7 +202,7 @@ router.get("/history", async (req, res) => {
 
 // GET /resume/history/:id — get specific analysis
 router.get("/history/:id", async (req, res) => {
-  const userId = req.session?.userId ?? null;
+  const userId = req.userId ?? null;
   if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
     return;
@@ -241,7 +241,7 @@ router.get("/history/:id", async (req, res) => {
 
 // POST /resume/rewrite — AI rewrite (1 free lifetime, then ₹99 per rewrite)
 router.post("/rewrite", async (req, res) => {
-  const userId = req.session?.userId ?? null;
+  const userId = req.userId ?? null;
   if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
     return;

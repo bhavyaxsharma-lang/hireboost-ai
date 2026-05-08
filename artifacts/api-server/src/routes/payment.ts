@@ -19,7 +19,7 @@ function getRazorpay() {
 
 // POST /payment/create-order — creates a Razorpay order for ₹99
 router.post("/create-order", async (req, res) => {
-  const userId = req.session?.userId;
+  const userId = req.userId;
   if (!userId) {
     res.status(401).json({ error: "Not authenticated" });
     return;
@@ -55,7 +55,7 @@ router.post("/create-order", async (req, res) => {
 
 // POST /payment/verify — verify Razorpay signature after successful payment
 router.post("/verify", async (req, res) => {
-  const userId = req.session?.userId;
+  const userId = req.userId;
   if (!userId) {
     res.status(401).json({ error: "Not authenticated" });
     return;

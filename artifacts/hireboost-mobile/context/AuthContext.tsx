@@ -71,6 +71,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
+    const storedToken = await AsyncStorage.getItem(TOKEN_KEY);
+    if (storedToken) {
+      // Tell the server to increment tokenVersion, which invalidates this JWT
+      // and any copies of it. Failure is non-fatal — local state is always cleared.
+      try {
+        await fetch(`${BASE}/api/auth/logout`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${storedToken}` },
+        });
+      } catch {
+        // Network error — proceed with local logout anyway
+      }
+    }
     await AsyncStorage.removeItem(TOKEN_KEY);
     setToken(null);
     setUser(null);

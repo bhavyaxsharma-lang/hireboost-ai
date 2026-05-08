@@ -6,7 +6,7 @@ const router = Router();
 // POST /interview/jd-prep
 // Accepts { jobDescription, questionCount } — returns JD analysis + tailored Q&A
 router.post("/jd-prep", async (req, res) => {
-  const userId = req.session?.userId ?? null;
+  const userId = req.userId ?? null;
   if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
     return;

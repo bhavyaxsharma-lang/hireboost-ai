@@ -7,7 +7,7 @@ const router = Router();
 
 // GET /dashboard/stats
 router.get("/stats", async (req, res) => {
-  const userId = req.session?.userId ?? null;
+  const userId = req.userId ?? null;
   if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
     return;
@@ -72,7 +72,7 @@ router.get("/stats", async (req, res) => {
 
 // GET /dashboard/recent-activity
 router.get("/recent-activity", async (req, res) => {
-  const userId = req.session?.userId ?? null;
+  const userId = req.userId ?? null;
   if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
     return;
