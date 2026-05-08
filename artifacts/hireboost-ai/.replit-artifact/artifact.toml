@@ -17,6 +17,9 @@ localPort = 22412
 [services.development]
 run = "pnpm --filter @workspace/hireboost-ai run dev"
 
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/hireboost-ai", "run", "build" ]
+
 [services.env]
 PORT = "22412"
 BASE_PATH = "/"
