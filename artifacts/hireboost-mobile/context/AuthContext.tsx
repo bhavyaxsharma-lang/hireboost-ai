@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import React, { createContext, useContext, useEffect, useState } from "react";
 
 interface User {
@@ -25,6 +26,7 @@ const TOKEN_KEY = "hireboost_auth_token";
 const BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -64,6 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error ?? "Login failed");
     const { user: u, token: t } = data as { user: User; token: string; message: string };
+    queryClient.clear();
     await AsyncStorage.setItem(TOKEN_KEY, t);
     setToken(t);
     setUser(u);
@@ -88,6 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
     setUser(null);
     setAuthTokenGetter(null);
+    queryClient.clear();
   };
 
   const register = async (name: string, email: string, password: string): Promise<string> => {

@@ -1,14 +1,28 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
-import { Tabs } from "expo-router";
+import { Redirect, Tabs } from "expo-router";
 import React from "react";
-import { Platform, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Platform, StyleSheet, View } from "react-native";
+import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 
 export default function TabLayout() {
   const colors = useColors();
+  const { user, isLoading } = useAuth();
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (!user) {
+    return <Redirect href="/(auth)/login" />;
+  }
 
   return (
     <Tabs
