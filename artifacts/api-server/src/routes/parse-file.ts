@@ -5,17 +5,6 @@ import { Worker } from "node:worker_threads";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { requireAuth } from "../middleware/requireAuth";
-import { createRequire } from "node:module";
-
-// mammoth is CJS-only — use createRequire so the externalized module resolves
-// correctly at runtime from the bundle location.
-const _require = createRequire(import.meta.url);
-
-// mammoth: module.exports is the mammoth object with extractRawText, etc.
-const mammoth = _require("mammoth") as {
-  extractRawText: (opts: { buffer: Buffer }) => Promise<{ value: string; messages: unknown[] }>;
-};
-
 // Path to the compiled PDF worker bundle.  The worker is a separate esbuild
 // entry point so it runs in an isolated Node.js Worker thread and can be
 // hard-terminated on timeout — releasing all CPU and memory immediately.
@@ -25,12 +14,25 @@ const PDF_WORKER_PATH = path.join(
   "pdf-parse-worker.mjs"
 );
 
+// Path to the compiled Word worker bundle (handles both .docx and .doc).
+const WORD_WORKER_PATH = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "workers",
+  "word-parse-worker.mjs"
+);
+
 // Validate the worker bundle exists at startup so packaging drift is caught
 // early (e.g. if a build step omits the workers/ output directory).
 import { existsSync } from "node:fs";
 if (!existsSync(PDF_WORKER_PATH)) {
   throw new Error(
     `PDF worker bundle not found at ${PDF_WORKER_PATH}. ` +
+    "Run 'pnpm run build' to regenerate the dist/ directory."
+  );
+}
+if (!existsSync(WORD_WORKER_PATH)) {
+  throw new Error(
+    `Word worker bundle not found at ${WORD_WORKER_PATH}. ` +
     "Run 'pnpm run build' to regenerate the dist/ directory."
   );
 }
@@ -47,6 +49,13 @@ if (!existsSync(PDF_WORKER_PATH)) {
 // structure or compression encoding.
 const PDF_PARSE_TIMEOUT_MS = parseInt(
   process.env["PDF_PARSE_TIMEOUT_MS"] ?? "10000",
+  10
+);
+
+// Hard wall-clock limit for a single Word document parse.  Configurable via
+// WORD_PARSE_TIMEOUT_MS env var for production tuning.
+const WORD_PARSE_TIMEOUT_MS = parseInt(
+  process.env["WORD_PARSE_TIMEOUT_MS"] ?? "15000",
   10
 );
 
@@ -83,6 +92,44 @@ function pdfParseInWorker(
         resolve({ text: msg.text ?? "", numpages: msg.numpages ?? 0 });
       } else {
         reject(new Error(msg.error ?? "PDF parsing failed"));
+      }
+    });
+
+    worker.on("error", (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+  });
+}
+
+/**
+ * Parse a Word document buffer (.docx or .doc) in a dedicated Worker thread.
+ *
+ * Mirrors pdfParseInWorker: the main event loop is never blocked, and
+ * worker.terminate() enforces a true hard timeout so a pathological document
+ * cannot consume server resources beyond the allowed window.
+ */
+function wordParseInWorker(buf: Buffer): Promise<{ text: string }> {
+  return new Promise((resolve, reject) => {
+    const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+
+    const worker = new Worker(WORD_WORKER_PATH, {
+      workerData: { buffer: ab },
+      transferList: [ab as ArrayBuffer],
+    });
+
+    const timer = setTimeout(() => {
+      worker.terminate();
+      reject(new Error("Word parsing timed out"));
+    }, WORD_PARSE_TIMEOUT_MS);
+
+    worker.on("message", (msg: { ok: boolean; text?: string; error?: string }) => {
+      clearTimeout(timer);
+      void worker.terminate();
+      if (msg.ok) {
+        resolve({ text: msg.text ?? "" });
+      } else {
+        reject(new Error(msg.error ?? "Word parsing failed"));
       }
     });
 
@@ -315,12 +362,33 @@ router.post("/parse-file", requireAuth, (req, res, next) => {
         res.status(400).json({ error: "The uploaded file is not a valid Word document or failed safety checks." });
         return;
       }
-      const result = await mammoth.extractRawText({ buffer });
-      extractedText = result.value;
+      let wordData: { text: string };
+      try {
+        wordData = await wordParseInWorker(buffer);
+      } catch (workerErr: unknown) {
+        const msg = workerErr instanceof Error ? workerErr.message : String(workerErr);
+        if (msg === "Word parsing timed out") {
+          res.status(400).json({ error: "Word document processing exceeded the time limit. Please upload a simpler document." });
+          return;
+        }
+        throw workerErr;
+      }
+      extractedText = wordData.text;
     } else {
-      // Legacy .doc (Compound File Binary Format) — mammoth handles these directly.
-      const result = await mammoth.extractRawText({ buffer });
-      extractedText = result.value;
+      // Legacy .doc (Compound File Binary Format) — parsed in worker thread
+      // with a hard timeout to prevent main-loop blocking.
+      let wordData: { text: string };
+      try {
+        wordData = await wordParseInWorker(buffer);
+      } catch (workerErr: unknown) {
+        const msg = workerErr instanceof Error ? workerErr.message : String(workerErr);
+        if (msg === "Word parsing timed out") {
+          res.status(400).json({ error: "Word document processing exceeded the time limit. Please upload a simpler document." });
+          return;
+        }
+        throw workerErr;
+      }
+      extractedText = wordData.text;
     }
 
     // Clean up excessive whitespace while preserving structure

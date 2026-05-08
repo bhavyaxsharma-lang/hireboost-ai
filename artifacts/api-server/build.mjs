@@ -18,6 +18,7 @@ async function buildAll() {
     entryPoints: [
       path.resolve(artifactDir, "src/index.ts"),
       path.resolve(artifactDir, "src/workers/pdf-parse-worker.ts"),
+      path.resolve(artifactDir, "src/workers/word-parse-worker.ts"),
     ],
     platform: "node",
     bundle: true,
