@@ -3,6 +3,6 @@ import { setBaseUrl } from "@workspace/api-client-react";
 import App from "./App";
 import "./index.css";
 
-setBaseUrl("workspaceapi-server-production-7836.up.railway.app");
+setBaseUrl("https://workspaceapi-server-production-7836.up.railway.app");
 
 createRoot(document.getElementById("root")!).render(<App />);
