@@ -19,32 +19,41 @@ declare module "express-session" {
 const router = Router();
 
 // POST /auth/register
+// POST /auth/register
 router.post("/register", async (req, res) => {
   const parseResult = RegisterUserBody.safeParse(req.body);
+
   if (!parseResult.success) {
     res.status(400).json({ error: "Invalid request body" });
     return;
   }
 
   const { name, email, password } = parseResult.data;
+  const normalizedEmail = email.toLowerCase().trim();
 
-  // Use a constant-time generic message for both existing and new accounts to
-  // prevent email enumeration: callers cannot distinguish the two cases.
-  const genericMessage = "If this email is not already registered, your account has been created. Please log in to continue.";
+  const genericMessage =
+    "If this email is not already registered, your account has been created. Please log in to continue.";
 
   try {
-    const existing = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    const existing = await db
+      .select()
+      .from(users)
+      .where(sql`LOWER(${users.email}) = ${normalizedEmail}`)
+      .limit(1);
+
     if (existing.length > 0) {
-      // Silently discard — same response as success to prevent enumeration
       res.status(200).json({ message: genericMessage });
       return;
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    await db.insert(users).values({ name, email, passwordHash });
 
-    // Do not auto-login: returning a uniform message prevents callers from
-    // distinguishing a new registration from a duplicate-email attempt.
+    await db.insert(users).values({
+      name,
+      email: normalizedEmail,
+      passwordHash,
+    });
+
     res.status(200).json({ message: genericMessage });
   } catch (err) {
     req.log.error({ err }, "Error registering user");
@@ -55,33 +64,50 @@ router.post("/register", async (req, res) => {
 // POST /auth/login
 router.post("/login", async (req, res) => {
   const parseResult = LoginUserBody.safeParse(req.body);
+
   if (!parseResult.success) {
     res.status(400).json({ error: "Invalid request body" });
     return;
   }
 
   const { email, password } = parseResult.data;
+  const normalizedEmail = email.toLowerCase().trim();
 
   try {
-    const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    
+
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(sql`LOWER(${users.email}) = ${normalizedEmail}`)
+      .limit(1);
+
+    
+
     if (!user) {
       res.status(401).json({ error: "Invalid email or password" });
       return;
     }
 
+   
+
     const valid = await bcrypt.compare(password, user.passwordHash);
+
+    
+
     if (!valid) {
       res.status(401).json({ error: "Invalid email or password" });
       return;
     }
 
-    // Set session (for web clients)
     req.session.userId = user.id;
 
-    // Sign a JWT token for mobile clients. The tokenVersion is embedded so the
-    // bearer middleware can verify it against the database and immediately reject
-    // tokens that were invalidated by a subsequent logout or password reset.
-    const token = signToken({ userId: user.id, name: user.name, email: user.email, tokenVersion: user.tokenVersion });
+    const token = signToken({
+      userId: user.id,
+      name: user.name,
+      email: user.email,
+      tokenVersion: user.tokenVersion,
+    });
 
     res.json({
       user: {
@@ -97,28 +123,6 @@ router.post("/login", async (req, res) => {
     req.log.error({ err }, "Error logging in user");
     res.status(500).json({ error: "Internal server error" });
   }
-});
-
-// POST /auth/logout
-// Works for both web (session) and mobile (bearer) clients.
-// Increments the user's tokenVersion in the database so all previously issued
-// JWTs are immediately rejected by the bearer middleware on subsequent requests.
-router.post("/logout", async (req, res) => {
-  const userId = req.userId;
-  try {
-    if (userId) {
-      await db
-        .update(users)
-        .set({ tokenVersion: sql`${users.tokenVersion} + 1` })
-        .where(eq(users.id, userId));
-    }
-  } catch (err) {
-    req.log.error({ err }, "Error invalidating user tokens on logout");
-    // Continue with session destruction even if token invalidation fails
-  }
-  req.session.destroy(() => {
-    res.json({ message: "Logged out successfully" });
-  });
 });
 
 // GET /auth/me
@@ -146,5 +150,20 @@ router.get("/me", async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+router.post("/logout", async (req, res) => {
+  req.session.destroy((err) => {
+    if (err) {
+      req.log.error({ err }, "Logout failed");
+      return res.status(500).json({
+        error: "Logout failed",
+      });
+    }
 
+    res.clearCookie("connect.sid");
+
+    res.json({
+      message: "Logged out successfully",
+    });
+  });
+});
 export default router;

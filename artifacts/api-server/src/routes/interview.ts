@@ -1,5 +1,6 @@
 // Interview session routes
 import { Router } from "express";
+import { requireAuth } from "../middleware/requireAuth";
 import { db, interviewSessions, interviewQuestions } from "@workspace/db";
 import { eq, desc, isNull, and } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
@@ -12,6 +13,8 @@ import {
 } from "@workspace/api-zod";
 
 const router = Router();
+const isMockMode = process.env.MOCK_RESPONSES === "true";
+const mockSessions = new Map<number, ReturnType<typeof formatSession>>();
 
 // Helper to format session with questions
 function formatSession(session: typeof interviewSessions.$inferSelect, questions: typeof interviewQuestions.$inferSelect[]) {
@@ -39,11 +42,45 @@ function formatSession(session: typeof interviewSessions.$inferSelect, questions
   };
 }
 
+function buildMockSession(sessionId: number, userId: number, jobRole: string, difficulty: string, questionTexts: string[]) {
+  const questions = questionTexts.map((questionText, index) => ({
+    id: sessionId * 100 + index + 1,
+    sessionId,
+    questionText,
+    questionIndex: index,
+    userAnswer: null,
+    aiFeedback: null,
+    sampleAnswer: null,
+    rating: null,
+  }));
+
+  return {
+    id: sessionId,
+    userId,
+    jobRole,
+    difficulty,
+    status: "in_progress",
+    averageRating: null,
+    totalQuestions: questions.length,
+    answeredQuestions: 0,
+    createdAt: new Date().toISOString(),
+    completedAt: null,
+    questions,
+  } as const;
+}
+
 // GET /interview/sessions
-router.get("/sessions", async (req, res) => {
-  const userId = req.userId ?? null;
-  if (!userId) {
-    res.status(401).json({ error: "Unauthorized" });
+router.get("/sessions", requireAuth,async (req, res) => {
+  const userId = req.userId;
+
+if (!userId) {
+  return res.status(401).json({
+    error: "Authentication required",
+  });
+}
+
+  if (isMockMode) {
+    res.json(Array.from(mockSessions.values()));
     return;
   }
 
@@ -76,47 +113,68 @@ router.get("/sessions", async (req, res) => {
 });
 
 // POST /interview/sessions - create session + generate questions
-router.post("/sessions", async (req, res) => {
-  const userId = req.userId ?? null;
-  if (!userId) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
+router.post("/sessions", requireAuth, async (req, res) => {
+  const userId = req.userId;
+
+if (!userId) {
+  return res.status(401).json({
+    error: "Authentication required",
+  });
+}
 
   const parseResult = CreateInterviewSessionBody.safeParse(req.body);
   if (!parseResult.success) {
-    res.status(400).json({ error: "Invalid request body" });
+   
+
+    res.status(400).json({
+      error: "Invalid request body",
+      details: parseResult.error.format(),
+    });
+
     return;
   }
 
   const { jobRole, difficulty = "medium", questionCount = 7 } = parseResult.data;
 
   try {
-    // Generate questions with AI
-    const prompt = `Generate exactly ${questionCount} interview questions for a ${difficulty} difficulty ${jobRole} interview.
+    let questionTexts: string[];
+
+    if (isMockMode) {
+      questionTexts = ["Explain REFramework in UiPath."];
+      while (questionTexts.length < questionCount) {
+        questionTexts.push("Describe a key UiPath automation challenge you've solved.");
+      }
+    } else {
+      // Generate questions with AI
+      const prompt = `Generate exactly ${questionCount} interview questions for a ${difficulty} difficulty ${jobRole} interview.
 Return ONLY a JSON array of strings, no markdown, no explanation.
 Example: ["Question 1?", "Question 2?"]
 Mix behavioral, technical, and situational questions appropriate for the role.`;
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-5.2",
-      max_completion_tokens: 8192,
-      messages: [{ role: "user", content: prompt }],
-    });
+      
+      const completion = await openai.chat.completions.create({
+        model: "gpt-5.2",
+        max_completion_tokens: 8192,
+        messages: [{ role: "user", content: prompt }],
+      });
+   
 
-    const content = completion.choices[0]?.message?.content ?? "[]";
-    let questionTexts: string[];
+      const content = completion.choices[0]?.message?.content ?? "[]";
 
-    try {
-      questionTexts = JSON.parse(content) as string[];
-    } catch {
-      questionTexts = [
-        `Tell me about your experience with ${jobRole}.`,
-        "What are your greatest technical strengths?",
-        "Describe a challenging project you worked on.",
-        "How do you handle tight deadlines?",
-        "Where do you see yourself in 5 years?",
-      ];
+     
+
+      try {
+        questionTexts = JSON.parse(content) as string[];
+      } catch (err) {
+       
+        questionTexts = [
+          `Tell me about your experience with ${jobRole}.`,
+          "What are your greatest technical strengths?",
+          "Describe a challenging project you worked on.",
+          "How do you handle tight deadlines?",
+          "Where do you see yourself in 5 years?",
+        ];
+      }
     }
 
     // Ensure we have the right count
@@ -124,6 +182,14 @@ Mix behavioral, technical, and situational questions appropriate for the role.`;
       questionTexts.push(`Describe your experience with a key aspect of the ${jobRole} role.`);
     }
     questionTexts = questionTexts.slice(0, questionCount);
+
+    if (isMockMode) {
+      const sessionId = mockSessions.size + 1;
+      const session = buildMockSession(sessionId, userId, jobRole, difficulty, questionTexts);
+      mockSessions.set(sessionId, session);
+      res.status(201).json(session);
+      return;
+    }
 
     // Create session
     const [session] = await db.insert(interviewSessions).values({
@@ -145,19 +211,24 @@ Mix behavioral, technical, and situational questions appropriate for the role.`;
     const insertedQuestions = await db.insert(interviewQuestions).values(questionsToInsert).returning();
 
     res.status(201).json(formatSession(session, insertedQuestions));
-  } catch (err) {
-    req.log.error({ err }, "Error creating interview session");
-    res.status(500).json({ error: "Failed to create interview session" });
+  } catch (error) {
+    
+
+    res.status(500).json({
+      error: "Failed to create interview session",
+    });
   }
 });
 
 // GET /interview/sessions/:id
-router.get("/sessions/:id", async (req, res) => {
-  const userId = req.userId ?? null;
-  if (!userId) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
+router.get("/sessions/:id", requireAuth, async (req, res) => {
+  const userId = req.userId;
+
+if (!userId) {
+  return res.status(401).json({
+    error: "Authentication required",
+  });
+}
 
   const parseResult = GetInterviewSessionParams.safeParse({ id: Number(req.params.id) });
   if (!parseResult.success) {
@@ -166,11 +237,22 @@ router.get("/sessions/:id", async (req, res) => {
   }
 
   try {
+    if (isMockMode) {
+      const session = mockSessions.get(parseResult.data.id);
+      if (!session) {
+        res.status(404).json({ error: "Session not found" });
+        return;
+      }
+      res.json(session);
+      return;
+    }
+
     const [session] = await db.select().from(interviewSessions).where(and(eq(interviewSessions.id, parseResult.data.id), eq(interviewSessions.userId, userId))).limit(1);
     if (!session) {
       res.status(404).json({ error: "Session not found" });
       return;
     }
+    
 
     const questions = await db
       .select()
@@ -186,12 +268,14 @@ router.get("/sessions/:id", async (req, res) => {
 });
 
 // POST /interview/sessions/:id/answer - submit answer and get AI feedback
-router.post("/sessions/:id/answer", async (req, res) => {
-  const userId = req.userId ?? null;
-  if (!userId) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
+router.post("/sessions/:id/answer", requireAuth, async (req, res) => {
+  const userId = req.userId;
+
+if (!userId) {
+  return res.status(401).json({
+    error: "Authentication required",
+  });
+}
 
   const paramsResult = SubmitAnswerParams.safeParse({ id: Number(req.params.id) });
   if (!paramsResult.success) {
@@ -215,6 +299,42 @@ router.post("/sessions/:id/answer", async (req, res) => {
   const SENTINEL = "__EVALUATING__";
 
   try {
+    if (isMockMode) {
+      const session = mockSessions.get(sessionId);
+      if (!session || session.userId !== userId) {
+        res.status(404).json({ error: "Session not found" });
+        return;
+      }
+
+      const question = session.questions.find((q: any) => q.id === questionId);
+      if (!question) {
+        res.status(404).json({ error: "Question not found" });
+        return;
+      }
+
+      if (question.userAnswer) {
+        res.status(409).json({ error: "This question has already been answered." });
+        return;
+      }
+
+      question.userAnswer = answer;
+      question.aiFeedback = "Good effort! Keep practicing to improve your responses.";
+      question.sampleAnswer = "A strong answer would use the STAR method: describe the Situation, explain the Task you were responsible for, detail the Actions you took, and share the measurable Results you achieved.";
+      question.rating = 4;
+
+      session.answeredQuestions += 1;
+      session.averageRating = 4;
+
+      res.json({
+        questionId,
+        feedback: question.aiFeedback,
+        rating: question.rating,
+        suggestions: ["Be more specific", "Use the STAR method", "Show impact with numbers"],
+        sampleAnswer: question.sampleAnswer,
+      });
+      return;
+    }
+
     // Verify session ownership before allowing writes
     const [sessionOwner] = await db.select({ userId: interviewSessions.userId }).from(interviewSessions).where(and(eq(interviewSessions.id, sessionId), eq(interviewSessions.userId, userId))).limit(1);
     if (!sessionOwner) {
@@ -321,12 +441,14 @@ Return ONLY valid JSON with exactly these fields:
 });
 
 // POST /interview/sessions/:id/complete - complete session
-router.post("/sessions/:id/complete", async (req, res) => {
-  const userId = req.userId ?? null;
-  if (!userId) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
+router.post("/sessions/:id/complete",requireAuth, async (req, res) => {
+const userId = req.userId;
+
+if (!userId) {
+  return res.status(401).json({
+    error: "Authentication required",
+  });
+}
 
   const parseResult = CompleteInterviewSessionParams.safeParse({ id: Number(req.params.id) });
   if (!parseResult.success) {
@@ -340,6 +462,11 @@ router.post("/sessions/:id/complete", async (req, res) => {
       res.status(404).json({ error: "Session not found" });
       return;
     }
+    if (session.status === "completed") {
+  return res.status(400).json({
+    error: "Interview already completed",
+  });
+}
 
     // Calculate average rating from answered questions
     const questions = await db
@@ -375,8 +502,11 @@ router.post("/sessions/:id/complete", async (req, res) => {
       completedAt: updated.completedAt,
     });
   } catch (err) {
-    req.log.error({ err }, "Error completing session");
-    res.status(500).json({ error: "Failed to complete session" });
+    
+
+    res.status(500).json({
+      error: "Failed to complete interview",
+    });
   }
 });
 

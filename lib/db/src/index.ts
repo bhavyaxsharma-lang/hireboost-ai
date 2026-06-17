@@ -3,14 +3,15 @@ import pg from "pg";
 import * as schema from "./schema";
 
 const { Pool } = pg;
+const isMockMode = process.env.MOCK_RESPONSES === "true";
 
-if (!process.env.DATABASE_URL) {
+if (!isMockMode && !process.env.DATABASE_URL) {
   throw new Error(
     "DATABASE_URL must be set. Did you forget to provision a database?",
   );
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle(pool, { schema });
+export const pool = isMockMode ? undefined : new Pool({ connectionString: process.env.DATABASE_URL });
+export const db = isMockMode ? (undefined as any) : drizzle(pool!, { schema });
 
 export * from "./schema";

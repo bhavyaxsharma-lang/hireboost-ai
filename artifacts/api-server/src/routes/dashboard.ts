@@ -1,19 +1,38 @@
 // Dashboard stats and activity feed routes
 import { Router } from "express";
+import { requireAuth } from "../middleware/requireAuth";
 import { db, resumeAnalyses, interviewSessions } from "@workspace/db";
 import { eq, desc, count, avg, sql } from "drizzle-orm";
 
 const router = Router();
+const isMockMode = process.env.MOCK_RESPONSES === "true";
 
 // GET /dashboard/stats
-router.get("/stats", async (req, res) => {
-  const userId = req.userId ?? null;
-  if (!userId) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
+router.get("/stats", requireAuth, async (req, res) => {
+const userId = req.userId;
+
+if (!userId) {
+  return res.status(401).json({
+    error: "Authentication required",
+  });
+}
 
   try {
+    // Mock mode: return sample stats
+    if (isMockMode) {
+      res.json({
+        latestResumeScore: 78,
+        totalResumesAnalyzed: 3,
+        totalInterviewSessions: 2,
+        averageInterviewRating: 4.2,
+        completedInterviews: 1,
+        topJobRoles: ["Software Engineer", "Product Manager"],
+      });
+      return;
+    }
+
+    
+
     // Latest resume score
     const latestResumeResult = await db
       .select({ atsScore: resumeAnalyses.atsScore })
@@ -54,13 +73,22 @@ router.get("/stats", async (req, res) => {
       .orderBy(desc(interviewSessions.createdAt))
       .limit(5);
 
-    const uniqueRoles = [...new Set(topRolesResult.map((r) => r.jobRole))];
+    const uniqueRoles = [
+  ...new Set(
+    topRolesResult
+      .map((r) => r.jobRole)
+      .filter(Boolean)
+  ),
+];
 
     res.json({
       latestResumeScore: latestResumeResult[0]?.atsScore ?? null,
       totalResumesAnalyzed: totalResumesResult[0]?.count ?? 0,
       totalInterviewSessions: totalInterviewsResult[0]?.count ?? 0,
-      averageInterviewRating: avgRatingResult[0]?.avg ? Number(avgRatingResult[0].avg) : null,
+      averageInterviewRating:
+  avgRatingResult[0]?.avg != null
+    ? Number(avgRatingResult[0].avg)
+    : null,
       completedInterviews: completedResult[0]?.count ?? 0,
       topJobRoles: uniqueRoles,
     });
@@ -71,14 +99,51 @@ router.get("/stats", async (req, res) => {
 });
 
 // GET /dashboard/recent-activity
-router.get("/recent-activity", async (req, res) => {
-  const userId = req.userId ?? null;
-  if (!userId) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
+router.get("/recent-activity", requireAuth, async (req, res) => {
+const userId = req.userId;
+
+if (!userId) {
+  return res.status(401).json({
+    error: "Authentication required",
+  });
+}
 
   try {
+    // Mock mode: return sample activity
+    if (isMockMode) {
+      const now = new Date();
+      res.json([
+        {
+          id: "resume-1",
+          type: "resume_analysis",
+          title: "Resume Analyzed",
+          subtitle: "For Software Engineer",
+          score: 78,
+          rating: null,
+          createdAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+        {
+          id: "interview-1",
+          type: "interview_completed",
+          title: "Interview Completed",
+          subtitle: "Senior React Developer",
+          score: null,
+          rating: 4.5,
+          createdAt: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+        },
+        {
+          id: "resume-2",
+          type: "resume_analysis",
+          title: "Resume Analyzed",
+          subtitle: "For Product Manager",
+          score: 82,
+          rating: null,
+          createdAt: now.toISOString(),
+        },
+      ]);
+      return;
+    }
+
     // Get recent resume analyses
     const recentResumes = await db
       .select({
@@ -126,7 +191,17 @@ router.get("/recent-activity", async (req, res) => {
         rating: i.averageRating,
         createdAt: i.createdAt,
       })),
-    ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    ].sort((a, b) => {
+  const aTime = a.createdAt
+    ? new Date(a.createdAt).getTime()
+    : 0;
+
+  const bTime = b.createdAt
+    ? new Date(b.createdAt).getTime()
+    : 0;
+
+  return bTime - aTime;
+})
       .slice(0, 10);
 
     res.json(activities);

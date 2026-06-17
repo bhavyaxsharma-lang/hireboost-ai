@@ -45,20 +45,36 @@ router.post("/razorpay", async (req: Request, res: Response) => {
   }
 
   const expectedSignature = crypto
-    .createHmac("sha256", webhookSecret)
-    .update(rawBody)
-    .digest("hex");
+  .createHmac("sha256", webhookSecret)
+  .update(rawBody)
+  .digest("hex");
 
-  if (expectedSignature !== signature) {
-    // Log at error level: sustained signature mismatches are a strong signal that
-    // RAZORPAY_WEBHOOK_SECRET is wrong. A misconfigured secret disables reversal
-    // reconciliation without triggering the startup guard, so this must be visible
-    // in production monitoring as an error, not just a warning.
-    logger.error("Razorpay webhook signature mismatch — rejecting. Check RAZORPAY_WEBHOOK_SECRET matches the Razorpay dashboard value.");
-    res.status(400).json({ error: "Invalid webhook signature" });
-    return;
-  }
+const expectedBuffer = Buffer.from(
+  expectedSignature,
+  "utf8",
+);
 
+const actualBuffer = Buffer.from(
+  signature,
+  "utf8",
+);
+
+if (
+  expectedBuffer.length !== actualBuffer.length ||
+  !crypto.timingSafeEqual(
+    expectedBuffer,
+    actualBuffer,
+  )
+) {
+  logger.error(
+    "Razorpay webhook signature mismatch — rejecting. Check RAZORPAY_WEBHOOK_SECRET matches the Razorpay dashboard value.",
+  );
+
+  return res.status(400).json({
+    error: "Invalid webhook signature",
+  });
+}
+   
   let event: { event: string; payload?: Record<string, unknown> };
   try {
     event = JSON.parse(rawBody.toString("utf8")) as typeof event;
@@ -141,7 +157,9 @@ async function markPaymentByOrderId(razorpayOrderId: string, newStatus: string) 
         notInArray(payments.status, [...TERMINAL_ADVERSE_STATUSES]),
       ),
     )
-    .returning({ id: payments.id, prevStatus: payments.status });
+    .returning({
+  id: payments.id,
+});
 
   logger.info(
     { razorpayOrderId, newStatus, updated: result.length },
@@ -159,7 +177,9 @@ async function markPaymentByPaymentId(razorpayPaymentId: string, newStatus: stri
         notInArray(payments.status, [...TERMINAL_ADVERSE_STATUSES]),
       ),
     )
-    .returning({ id: payments.id, prevStatus: payments.status });
+    .returning({
+  id: payments.id,
+});
 
   logger.info(
     { razorpayPaymentId, newStatus, updated: result.length },

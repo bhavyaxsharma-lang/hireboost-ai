@@ -1,16 +1,20 @@
 import { Router } from "express";
+import { requireAuth } from "../middleware/requireAuth";
 import { openai } from "@workspace/integrations-openai-ai-server";
 
 const router = Router();
+const isMockMode = process.env.MOCK_RESPONSES === "true";
 
 // POST /interview/jd-prep
 // Accepts { jobDescription, questionCount } — returns JD analysis + tailored Q&A
-router.post("/jd-prep", async (req, res) => {
-  const userId = req.userId ?? null;
-  if (!userId) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
+router.post("/jd-prep", requireAuth, async (req, res) => {
+const userId = req.userId;
+
+if (!userId) {
+  return res.status(401).json({
+    error: "Authentication required",
+  });
+}
 
   const { jobDescription, questionCount = 8 } = req.body;
 
@@ -25,6 +29,31 @@ router.post("/jd-prep", async (req, res) => {
   const count = Math.min(Math.max(Number(questionCount) || 8, 3), 15);
 
   try {
+    if (isMockMode) {
+      res.json({
+        analysis: {
+          roleTitle: "RPA Developer",
+          seniority: "Mid-level",
+          keySkills: ["UiPath", "RPA", "Dispatcher", "Queue Management", "Process Automation"],
+          industry: "Information Technology",
+          summary: "The employer is looking for a skilled RPA developer who can design and maintain UiPath automations with strong process discipline and queue-based orchestration. The role requires hands-on delivery experience along with the ability to translate business needs into reliable automation solutions.",
+        },
+        questions: [
+          {
+            question: "What is Dispatcher?",
+            category: "Technical",
+            whyAsked: "To evaluate your understanding of UiPath queue-based automation architecture.",
+            modelAnswer: "Dispatcher pushes transactions into a UiPath Orchestrator queue by reading input data and creating queue items for the Performer to consume. It is the producer in a dispatcher-performer pattern, ensuring work is staged reliably and can be retried or audited. A strong answer explains how Dispatcher separates data ingestion from execution and helps scale automation across multiple processes.",
+            tips: [
+              "Explain Dispatcher as the producer role in the Dispatcher-Performer pattern.",
+              "Mention that Dispatcher creates queue items for the Performer to process later.",
+            ],
+          },
+        ],
+      });
+      return;
+    }
+
     const prompt = `You are a senior career coach and hiring expert. Analyze the following job description and generate ${count} highly relevant interview questions WITH strong model answers tailored specifically to this role.
 
 JOB DESCRIPTION:
@@ -79,12 +108,22 @@ Mix categories: include Technical, Behavioral, Role-Specific, and Situational qu
       }>;
     };
 
-    try {
-      result = JSON.parse(content) as typeof result;
-    } catch {
-      res.status(500).json({ error: "AI returned an unexpected response. Please try again." });
-      return;
-    }
+  try {
+  result = JSON.parse(content);
+
+  if (
+    !result ||
+    typeof result !== "object" ||
+    !result.analysis ||
+    !Array.isArray(result.questions)
+  ) {
+    throw new Error("Invalid AI response structure");
+  }
+} catch {
+  return res.status(500).json({
+    error: "AI returned an unexpected response. Please try again.",
+  });
+}
 
     res.json(result);
   } catch (err) {

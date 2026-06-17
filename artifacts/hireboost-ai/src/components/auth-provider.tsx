@@ -1,30 +1,54 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
-import { useGetCurrentUser, type User } from "@workspace/api-client-react";
-import { useLocation } from "wouter";
+import React, { createContext, useContext } from "react";
 
 type AuthState = {
-  user: User | null;
+  user: {
+    name?: string;
+    email?: string;
+  } | null;
   isLoading: boolean;
   isAuthenticated: boolean;
 };
 
 const AuthContext = createContext<AuthState>({
   user: null,
-  isLoading: true,
+  isLoading: false,
   isAuthenticated: false,
 });
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { data: user, isLoading, error } = useGetCurrentUser({
-    query: {
-      retry: false,
-    }
-  });
+export function AuthProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const [token, setToken] = React.useState(
+    localStorage.getItem("authToken")
+  );
 
-  const isAuthenticated = !!user && !error;
+  React.useEffect(() => {
+    const syncAuth = () => {
+      setToken(localStorage.getItem("authToken"));
+    };
+
+    window.addEventListener("storage", syncAuth);
+
+    return () => {
+      window.removeEventListener("storage", syncAuth);
+    };
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ user: user || null, isLoading, isAuthenticated }}>
+    <AuthContext.Provider
+      value={{
+        user: token
+          ? {
+              name: localStorage.getItem("userName") || undefined,
+              email: localStorage.getItem("userEmail") || undefined,
+            }
+          : null,
+        isLoading: false,
+        isAuthenticated: !!token,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -32,21 +56,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export const useAuth = () => useContext(AuthContext);
 
-export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
-  const [, setLocation] = useLocation();
+export function ProtectedRoute({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const token = localStorage.getItem("authToken");
 
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      setLocation("/auth");
-    }
-  }, [isAuthenticated, isLoading, setLocation]);
-
-  if (isLoading) {
-    return <div className="min-h-[100dvh] flex items-center justify-center"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>;
-  }
-
-  if (!isAuthenticated) {
+  if (!token) {
+    window.location.href = "/auth";
     return null;
   }
 

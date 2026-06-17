@@ -53,6 +53,14 @@ function ATSScoreRing({ score }: { score: number }) {
   const nr = radius - stroke / 2;
   const circumference = nr * 2 * Math.PI;
   const color = score >= 75 ? "#84cc16" : score >= 50 ? "#f59e0b" : "#ef4444";
+  const safeDisplayScore = Math.max(
+  0,
+  Math.min(100, displayScore)
+);
+
+const offset =
+  circumference -
+  (safeDisplayScore / 100) * circumference;
 
   useEffect(() => {
     let start = 0;
@@ -66,7 +74,7 @@ function ATSScoreRing({ score }: { score: number }) {
     return () => clearInterval(timer);
   }, [score]);
 
-  const offset = circumference - (displayScore / 100) * circumference;
+  
 
   return (
     <div className="flex flex-col items-center gap-3">
@@ -131,14 +139,30 @@ function FileUploadZone({ onFileParsed, disabled }: { onFileParsed: (r: ParsedFi
     setParseError(null);
     setIsParsing(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch(`${getApiBase()}/resume/parse-file`, { method: "POST", body: formData, credentials: "include" });
+const formData = new FormData();
+formData.append("file", file);
+
+const res = await fetch(`${getApiBase()}/resume/parse-file`, {
+  method: "POST",
+  body: formData,
+  credentials: "include",
+});
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         throw new Error((d as { error?: string }).error ?? "Failed to parse file.");
       }
-      const data = await res.json() as ParsedFile;
+      const data = await res.json();
+
+if (
+  !data ||
+  typeof data.text !== "string" ||
+  typeof data.fileName !== "string" ||
+  typeof data.wordCount !== "number"
+) {
+  throw new Error("Invalid file parser response");
+}
+  
+
       onFileParsed(data);
       toast({ title: `Parsed "${data.fileName}"`, description: `${data.wordCount} words extracted.` });
     } catch (err) {
@@ -227,14 +251,15 @@ function ParsedFileCard({ parsed, onClear, showPreview, onTogglePreview }: {
    DOCX builder — parse resume plain text → styled DOCX
 ───────────────────────────────────────────────────────── */
 const SECTION_HEADERS = new Set([
-  "SUMMARY", "PROFESSIONAL SUMMARY", "OBJECTIVE", "PROFILE",
-  "EXPERIENCE", "WORK EXPERIENCE", "PROFESSIONAL EXPERIENCE", "EMPLOYMENT HISTORY",
-  "EDUCATION", "EDUCATIONAL BACKGROUND", "ACADEMIC BACKGROUND",
-  "SKILLS", "TECHNICAL SKILLS", "CORE COMPETENCIES", "COMPETENCIES", "KEY SKILLS",
-  "PROJECTS", "KEY PROJECTS", "NOTABLE PROJECTS",
-  "CERTIFICATIONS", "CERTIFICATES", "LICENSES", "AWARDS", "ACHIEVEMENTS",
-  "PUBLICATIONS", "LANGUAGES", "INTERESTS", "VOLUNTEER", "VOLUNTEERING",
-  "REFERENCES", "CONTACT", "CONTACT INFORMATION",
+  "SUMMARY",
+  "PROFESSIONAL SUMMARY",
+  "EXECUTIVE SUMMARY",
+  "PROFESSIONAL PROFILE",
+  "KEY ACHIEVEMENTS",
+  "KEY PROJECTS",
+  "KEY RESPONSIBILITIES",
+  "SELECTED ACHIEVEMENTS",
+  "CAREER HIGHLIGHTS",
 ]);
 
 function isHeaderLine(line: string): boolean {
@@ -251,11 +276,11 @@ async function buildDocx(text: string, fileName: string): Promise<void> {
     Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle, ShadingType,
   } = await import("docx");
 
-  const HEADER_BG = "1B3A5C";
+  const HEADER_BG = "2E86AB";
   const HEADER_TEXT = "FFFFFF";
   const CONTACT_TEXT = "C5DDEF";
   const SECTION_BG = "EDF4FF";
-  const SECTION_COLOR = "1B3A5C";
+  const SECTION_COLOR = "2E86AB";
   const ACCENT_LINE = "2E86AB";
   const BODY_COLOR = "1F2937";
 
@@ -268,39 +293,95 @@ async function buildDocx(text: string, fileName: string): Promise<void> {
   const headerLines = lines.slice(0, firstSectionIdx).map((l) => l.trim()).filter(Boolean);
   const bodyLines = lines.slice(firstSectionIdx);
 
-  const name = headerLines[0] ?? "";
-  const contactParts = headerLines.slice(1);
-  const contactText = contactParts.join("   •   ");
+ const name = headerLines[0] ?? "";
+const title = headerLines[1] ?? "";
+const contactParts = headerLines.slice(2);
+const contactText = contactParts.join(" • ");
 
   const docChildren: InstanceType<typeof Paragraph>[] = [];
 
-  // ── Coloured name header ──────────────────────────────
-  if (name) {
-    docChildren.push(
-      new Paragraph({
-        children: [
-          new TextRun({ text: name, bold: true, size: 44, color: HEADER_TEXT, font: "Calibri" }),
-        ],
-        alignment: AlignmentType.CENTER,
-        spacing: { before: 0, after: 0 },
-        shading: { type: ShadingType.SOLID, color: HEADER_BG, fill: HEADER_BG },
-      }),
-    );
-  }
+  // ── Candidate Name ──────────────────────────────
+if (name) {
+  docChildren.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: name,
+          bold: true,
+          size: 36,
+          color: HEADER_TEXT,
+          font: "Calibri",
+        }),
+      ],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 60 },
+      shading: {
+        type: ShadingType.SOLID,
+        color: HEADER_BG,
+        fill: HEADER_BG,
+      },
+    })
+  );
+}
+
+// ── Job Title ──────────────────────────────
+if (title) {
+  docChildren.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: title,
+          italics: true,
+          size: 24,
+          color: HEADER_TEXT,
+          font: "Calibri",
+        }),
+      ],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 80 },
+      shading: {
+        type: ShadingType.SOLID,
+        color: HEADER_BG,
+        fill: HEADER_BG,
+      },
+    })
+  );
+}
 
   // ── Contact info row (same dark bg) ─────────────────
-  if (contactText) {
-    docChildren.push(
-      new Paragraph({
-        children: [
-          new TextRun({ text: contactText, size: 18, color: CONTACT_TEXT, font: "Calibri" }),
-        ],
-        alignment: AlignmentType.CENTER,
-        spacing: { before: 0, after: 0 },
-        shading: { type: ShadingType.SOLID, color: HEADER_BG, fill: HEADER_BG },
-      }),
-    );
-  }
+ if (contactText) {
+  docChildren.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: contactText,
+          color: CONTACT_TEXT,
+          size: 18,
+        }),
+      ],
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 100 },
+      shading: {
+        type: ShadingType.SOLID,
+        color: HEADER_BG,
+        fill: HEADER_BG,
+      },
+    })
+  );
+
+  docChildren.push(
+    new Paragraph({
+      border: {
+        bottom: {
+          style: BorderStyle.SINGLE,
+          size: 12,
+          color: "D9E2EC",
+        },
+      },
+      spacing: { after: 150 },
+    })
+  );
+}
 
   // Spacer after header
   docChildren.push(new Paragraph({ text: "", spacing: { before: 0, after: 100 } }));
@@ -322,7 +403,7 @@ async function buildDocx(text: string, fileName: string): Promise<void> {
             new TextRun({
               text: line.replace(/:$/, "").toUpperCase(),
               bold: true,
-              size: 22,
+              size: 24,
               color: SECTION_COLOR,
               font: "Calibri",
             }),
@@ -337,41 +418,47 @@ async function buildDocx(text: string, fileName: string): Promise<void> {
       continue;
     }
 
-    // Detect date/company header lines (bold them)
-    const isSubHeader =
-      !line.startsWith("•") &&
-      !line.startsWith("-") &&
-      line.length < 100 &&
-      /[A-Z]/.test(line[0] ?? "") &&
-      (/\d{4}/.test(line) || /at |@/.test(line));
+ // Bullet point
+const isBullet = /^[-•·▸►]\s/.test(line);
+const bulletText = isBullet
+  ? line.replace(/^[-•·▸►]\s+/, "")
+  : line;
 
-    // Bullet point
-    const isBullet = /^[-•·▸►]\s/.test(line);
-    const bulletText = isBullet ? line.replace(/^[-•·▸►]\s+/, "") : line;
-
-    docChildren.push(
-      new Paragraph({
-        children: [
-          new TextRun({
-            text: bulletText,
-            size: 20,
-            color: BODY_COLOR,
-            bold: isSubHeader && !isBullet,
-            font: "Calibri",
-          }),
-        ],
-        bullet: isBullet ? { level: 0 } : undefined,
-        indent: isBullet ? { left: 360, hanging: 180 } : undefined,
-        spacing: { after: isBullet ? 40 : 60 },
+// Detect company/project headers
+const isSubHeader =
+  !isBullet &&
+  line.length < 90 &&
+  (
+    line === line.toUpperCase() ||
+    /\d{4}/.test(line) ||
+    line.includes("PROJECT") ||
+    line.includes("CLIENT") ||
+    line.includes("AUTOMATION") ||
+    line.includes("TRANSFORMATION")
+  );
+  docChildren.push(
+  new Paragraph({
+    children: [
+      new TextRun({
+        text: bulletText,
+        size: isSubHeader ? 24 : 20,
+        color: BODY_COLOR,
+        bold: isSubHeader,
+        font: "Calibri",
       }),
-    );
-  }
+    ],
+    bullet: isBullet ? { level: 0 } : undefined,
+    indent: isBullet ? { left: 360, hanging: 180 } : undefined,
+    spacing: { after: isBullet ? 40 : 60 },
+  })
+);
+}
 
   const doc = new Document({
     sections: [
       {
         properties: {
-          page: { margin: { top: 480, bottom: 480, left: 720, right: 720 } },
+          page: { margin: { top: 480, bottom: 480, left: 900, right: 900 } },
         },
         children: docChildren,
       },
@@ -396,10 +483,21 @@ function ImprovedResumeCard({ text, originalFileName }: { text: string; original
   const { toast } = useToast();
   const [isDownloading, setIsDownloading] = useState(false);
 
-  const handleCopy = async () => {
+ const handleCopy = async () => {
+  try {
     await navigator.clipboard.writeText(text);
-    toast({ title: "Copied to clipboard!" });
-  };
+
+    toast({
+      title: "Copied to clipboard!",
+    });
+  } catch {
+    toast({
+      title: "Copy failed",
+      description: "Please copy manually.",
+      variant: "destructive",
+    });
+  }
+};
 
   const handleDownload = async () => {
     setIsDownloading(true);
@@ -443,13 +541,13 @@ function ImprovedResumeCard({ text, originalFileName }: { text: string; original
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <Textarea
-            value={text}
-            readOnly
-            className="min-h-[520px] font-mono text-sm resize-y bg-muted/30 leading-relaxed"
-          />
-        </CardContent>
+      <CardContent>
+  <div className="max-h-[700px] overflow-y-auto rounded-lg border bg-background p-6">
+    <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">
+      {text}
+    </pre>
+  </div>
+</CardContent>
       </Card>
     </motion.div>
   );
@@ -467,7 +565,7 @@ declare global {
 type RewriteStatus = { freeUsed: number; freeLimit: number; hasPaidCredit: boolean };
 
 /* ─────────────────────────────────────────────────────────
-   Auto-Fix Button — 1 free rewrite, then ₹99 via Razorpay
+   Auto-Fix Button — 1 free rewrite, then ₹199 via Razorpay
 ───────────────────────────────────────────────────────── */
 function AutoFixButton({
   parsed,
@@ -485,12 +583,24 @@ function AutoFixButton({
   const [rewriteStatus, setRewriteStatus] = useState<RewriteStatus | null>(null);
   const { toast } = useToast();
 
-  const fetchStatus = async () => {
-    try {
-      const res = await fetch(`${getApiBase()}/resume/rewrite-status`, { credentials: "include" });
-      if (res.ok) setRewriteStatus(await res.json() as RewriteStatus);
-    } catch { /* ignore */ }
-  };
+const fetchStatus = async () => {
+  try {
+    const res = await fetch(`${getApiBase()}/resume/rewrite-status?t=${Date.now()}`, {
+  credentials: "include",
+  cache: "no-store",
+});
+
+    if (res.ok) {
+  const data = await res.json() as RewriteStatus;
+
+  
+
+  setRewriteStatus(data);
+}
+  } catch {
+    // ignore
+  }
+};
 
   useEffect(() => { void fetchStatus(); }, []);
 
@@ -504,13 +614,22 @@ function AutoFixButton({
       document.body.appendChild(s);
     });
 
-  const doRewrite = async () => {
-    if (!parsed) return;
-    setIsRewriting(true);
-    try {
-      const res = await fetch(`${getApiBase()}/resume/rewrite`, {
+const doRewrite = async () => {
+  if (!parsed) return;
+
+  setIsRewriting(true);
+
+  try {
+    const token = localStorage.getItem("authToken");
+
+    const res = await fetch(
+      `${getApiBase()}/resume/rewrite`,
+      {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         credentials: "include",
         body: JSON.stringify({
           resumeText: parsed.text,
@@ -521,16 +640,37 @@ function AutoFixButton({
           overallFeedback: result.overallFeedback,
           jobTitle: jobTitle || undefined,
         }),
-      });
+      }
+    );
       if (!res.ok) {
         const d = await res.json().catch(() => ({})) as { error?: string; message?: string };
         // Use the human-readable message field if available (e.g. 402 payment_required)
         throw new Error(d.message ?? d.error ?? "Rewrite failed.");
       }
-      const { improvedResume } = await res.json() as { improvedResume: string };
-      onImproved(improvedResume);
-      void fetchStatus();
-      toast({ title: "Resume rewritten!", description: "Your optimized resume is ready to download." });
+      const responseData = await res.json();
+
+
+
+const improvedResume = responseData?.improvedResume;
+
+if (
+  typeof improvedResume !== "string" ||
+  improvedResume.trim().length === 0
+) {
+  throw new Error("Invalid rewrite response");
+}
+
+onImproved(improvedResume);
+await fetchStatus();
+await buildDocx(
+  improvedResume,
+  parsed.fileName
+);
+
+toast({
+  title: "Resume rewritten!",
+  description: "Your optimized resume has been downloaded."
+});
     } catch (err) {
       toast({ title: "Rewrite failed", description: err instanceof Error ? err.message : "Something went wrong.", variant: "destructive" });
     } finally {
@@ -630,7 +770,10 @@ function AutoFixButton({
     // mistakenly call doRewrite() when the user actually needs to pay.
     let currentStatus = rewriteStatus;
     try {
-      const statusRes = await fetch(`${getApiBase()}/resume/rewrite-status`, { credentials: "include" });
+      const statusRes = await fetch(`${getApiBase()}/resume/rewrite-status?t=${Date.now()}`, {
+  credentials: "include",
+  cache: "no-store",
+});
       if (statusRes.ok) {
         const fresh = await statusRes.json() as RewriteStatus;
         setRewriteStatus(fresh);
@@ -648,12 +791,14 @@ function AutoFixButton({
       await doRewrite();
     }
   };
-
+const hasPaidCredit = rewriteStatus?.hasPaidCredit ?? false;
   const freeLeft = rewriteStatus ? Math.max(0, rewriteStatus.freeLimit - rewriteStatus.freeUsed) : null;
   const needsPayment = rewriteStatus
-    ? rewriteStatus.freeUsed >= rewriteStatus.freeLimit && !rewriteStatus.hasPaidCredit
-    : false;
-  const hasPaidCredit = rewriteStatus?.hasPaidCredit ?? false;
+  ? rewriteStatus.freeUsed >= rewriteStatus.freeLimit &&
+    !rewriteStatus.hasPaidCredit
+  : false;
+
+
 
   if (isRewriting) {
     return (
@@ -668,7 +813,7 @@ function AutoFixButton({
       {rewriteStatus && (
         <p className="text-xs text-center text-muted-foreground">
           {needsPayment
-            ? "Your free rewrite is used up. Pay ₹99 to generate another."
+            ? "Your free rewrite is used up. Pay ₹199 to generate another."
             : hasPaidCredit
             ? "Paid credit available — rewrite included."
             : `${freeLeft} free rewrite remaining (${rewriteStatus.freeUsed}/${rewriteStatus.freeLimit} used).`}
@@ -683,7 +828,7 @@ function AutoFixButton({
         {isProcessingPayment ? (
           <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Processing Payment…</>
         ) : needsPayment ? (
-          <><CreditCard className="mr-2 h-5 w-5" /> Pay ₹99 — Auto-Fix Resume</>
+          <><CreditCard className="mr-2 h-5 w-5" /> Pay ₹199 — Auto-Fix Resume</>
         ) : (
           <><Wand2 className="mr-2 h-5 w-5" /> Auto-Fix My Resume{freeLeft !== null && freeLeft > 0 ? " — Free" : ""}</>
         )}
@@ -776,20 +921,53 @@ export default function ResumeAnalyzer() {
       return;
     }
     analyzeMutation.mutate(
-      { data: { resumeText: parsed.text, jobTitle: jobTitle || undefined, jobDescription: jobDescription || undefined } },
-      {
-        onSuccess: (data) => {
-          setResult({ atsScore: data.atsScore, missingKeywords: data.missingKeywords, suggestions: data.suggestions, strengths: data.strengths, overallFeedback: data.overallFeedback });
-          toast({ title: "Analysis complete!" });
-        },
-        onError: () => {
-          toast({ title: "Analysis failed", description: "Please try again.", variant: "destructive" });
-        },
+  {
+    data: {
+      resumeText: parsed.text,
+      jobTitle: jobTitle || undefined,
+      jobDescription: jobDescription || undefined,
+    },
+  },
+  {
+    onSuccess: (data: any) => {
+      if (
+        typeof data?.atsScore !== "number" ||
+        !Array.isArray(data?.missingKeywords) ||
+        !Array.isArray(data?.suggestions) ||
+        !Array.isArray(data?.strengths)
+      ) {
+        toast({
+          title: "Invalid analysis response",
+          variant: "destructive",
+        });
+        return;
       }
-    );
-  };
 
-  const containerVariants = {
+      setResult({
+        atsScore: data.atsScore,
+        missingKeywords: data.missingKeywords,
+        suggestions: data.suggestions,
+        strengths: data.strengths,
+        overallFeedback: data.overallFeedback,
+      });
+
+      toast({
+        title: "Analysis complete!",
+      });
+    },
+
+     onError: () => {
+      toast({
+        title: "Analysis failed",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+    },
+  }
+);
+};
+
+const containerVariants = {
     hidden: { opacity: 0 },
     show: { opacity: 1, transition: { staggerChildren: 0.08 } },
   };
@@ -907,7 +1085,7 @@ export default function ResumeAnalyzer() {
                   </CardHeader>
                   <CardContent>
                     <ul className="space-y-2">
-                      {result.missingKeywords.map((kw, i) => (
+                      {(result?.missingKeywords ?? []).map((kw, i) => (
                         <motion.li key={i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }} className="flex items-center gap-2 text-sm">
                           <div className="w-1.5 h-1.5 rounded-full bg-destructive shrink-0" />
                           <span className="font-medium">{kw}</span>
@@ -926,7 +1104,7 @@ export default function ResumeAnalyzer() {
                   </CardHeader>
                   <CardContent>
                     <ul className="space-y-2">
-                      {result.strengths.map((s, i) => (
+                      {(result?.strengths ?? []).map((s, i) => (
                         <motion.li key={i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }} className="flex items-center gap-2 text-sm">
                           <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
                           <span>{s}</span>
@@ -947,7 +1125,7 @@ export default function ResumeAnalyzer() {
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-3">
-                    {result.suggestions.map((sug, i) => (
+                 {(result?.suggestions ?? []).map((sug, i) => (
                       <motion.li key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }} className="flex gap-3 bg-muted/50 p-3 rounded-lg text-sm">
                         <span className="font-bold text-blue-500 shrink-0">{i + 1}.</span>
                         <span>{sug}</span>

@@ -22,18 +22,24 @@ const navItems = [
 
 export function Layout({ children }: { children: ReactNode }) {
   const { isAuthenticated, user } = useAuth();
+  const loggedIn =
+  isAuthenticated ||
+  !!localStorage.getItem("authToken");
   const [location, setLocation] = useLocation();
   const logout = useLogoutUser();
   const { theme, setTheme } = useTheme();
 
-  const handleLogout = () => {
-    logout.mutate(undefined, {
-      onSuccess: () => {
-        setLocation("/");
-        window.location.reload();
-      },
-    });
-  };
+const handleLogout = () => {
+  localStorage.removeItem("authToken");
+  localStorage.removeItem("userName");
+  localStorage.removeItem("userEmail");
+
+  logout.mutate(undefined, {
+    onSettled: () => {
+      window.location.href = "/";
+    },
+  });
+};
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background text-foreground">
@@ -59,7 +65,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 <span className="sr-only">Toggle theme</span>
               </Button>
 
-              {isAuthenticated ? (
+              {loggedIn ? (
                 <>
                   {/* Desktop nav */}
                   <div className="hidden md:flex items-center gap-1">
@@ -87,10 +93,16 @@ export function Layout({ children }: { children: ReactNode }) {
 
                     <div className="flex items-center gap-1 border-l ml-2 pl-3 border-border/50">
                       <div className="flex items-center gap-2 px-2 py-1 rounded-md bg-muted/50">
-                        <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
-                          {user?.name?.[0]?.toUpperCase() ?? "U"}
-                        </div>
-                        <span className="text-sm font-medium max-w-[80px] truncate">{user?.name}</span>
+                <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
+  {(
+    user?.name ||
+    localStorage.getItem("userName") ||
+    "B"
+  )[0].toUpperCase()}
+</div>
+                        <span className="text-sm font-medium max-w-[80px] truncate">
+  {user?.name || localStorage.getItem("userName")}
+</span>
                       </div>
                       <Button variant="ghost" size="icon" onClick={handleLogout} title="Log out" className="h-8 w-8">
                         <LogOut className="h-4 w-4" />
@@ -109,15 +121,25 @@ export function Layout({ children }: { children: ReactNode }) {
                     <SheetContent side="right" className="w-[260px] sm:w-[300px] p-0">
                       <div className="flex flex-col h-full">
                         {/* User header */}
-                        <div className="flex items-center gap-3 px-5 py-5 border-b border-border/50 bg-muted/30">
-                          <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">
-                            {user?.name?.[0]?.toUpperCase() ?? "U"}
-                          </div>
-                          <div className="flex flex-col min-w-0">
-                            <span className="text-sm font-bold truncate">{user?.name}</span>
-                            <span className="text-xs text-muted-foreground truncate">{user?.email}</span>
-                          </div>
-                        </div>
+              <div className="flex items-center gap-3 px-5 py-5 border-b border-border/50 bg-muted/30">
+  <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">
+    {(
+      user?.name ||
+      localStorage.getItem("userName") ||
+      "B"
+    )[0].toUpperCase()}
+  </div>
+
+  <div className="flex flex-col min-w-0">
+    <span className="text-sm font-bold truncate">
+      {user?.name || localStorage.getItem("userName")}
+    </span>
+
+    <span className="text-xs text-muted-foreground truncate">
+      {user?.email || localStorage.getItem("userEmail")}
+    </span>
+  </div>
+</div>
 
                         {/* Nav links */}
                         <nav className="flex flex-col gap-1 p-3 flex-1">
@@ -184,7 +206,7 @@ export function Layout({ children }: { children: ReactNode }) {
           </div>
           <p className="text-xs text-muted-foreground">
             Invented by{" "}
-            <span className="font-semibold text-foreground">Bhavya AI Solution</span>
+<span className="font-semibold">Bhavya AI Solutions</span>
           </p>
         </div>
       </footer>

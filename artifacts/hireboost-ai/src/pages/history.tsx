@@ -89,7 +89,9 @@ export default function History() {
                         </span>
                       </div>
                       <div className="text-xs text-muted-foreground flex items-center gap-3">
-                        <span>{format(new Date(session.createdAt), "MMM d, yyyy · h:mm a")}</span>
+                        <span>{session.createdAt
+  ? format(new Date(session.createdAt), "MMM d, yyyy · h:mm a")
+  : "Unknown date"}</span>
                         <span>{session.answeredQuestions}/{session.totalQuestions} questions answered</span>
                       </div>
                     </div>
@@ -151,7 +153,9 @@ export default function History() {
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <Target className="h-3 w-3" />
-                        {format(new Date(resume.createdAt), "MMM d, yyyy · h:mm a")}
+                        {resume.createdAt
+  ? format(new Date(resume.createdAt), "MMM d, yyyy · h:mm a")
+  : "Unknown date"}
                       </div>
                     </div>
                     <div className="shrink-0">

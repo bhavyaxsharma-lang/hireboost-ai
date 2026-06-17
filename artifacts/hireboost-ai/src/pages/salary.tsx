@@ -28,6 +28,8 @@ interface SalaryResult {
   marketInsight: string;
   suggestedCounter: number;
   negotiationTips: string[];
+  recommendedCTC?: string;
+  negotiationScript?: string;
 }
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -101,12 +103,26 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
 
-  const handleCopy = async () => {
+ const handleCopy = async () => {
+  try {
     await navigator.clipboard.writeText(text);
+
     setCopied(true);
-    toast({ title: "Copied!", description: `${label} copied to clipboard.` });
+
+    toast({
+      title: "Copied!",
+      description: `${label} copied to clipboard.`,
+    });
+
     setTimeout(() => setCopied(false), 2000);
-  };
+  } catch {
+    toast({
+      title: "Copy failed",
+      description: "Please copy manually.",
+      variant: "destructive",
+    });
+  }
+};
 
   return (
     <Button variant="ghost" size="sm" onClick={handleCopy} className="h-7 px-2 text-xs shrink-0">
@@ -168,8 +184,19 @@ export default function SalaryNegotiation() {
         body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error("Failed");
-      const data = (await res.json()) as SalaryResult;
-      setResult(data);
+      const data = await res.json();
+
+if (
+  typeof data?.counterOfferScript !== "string" ||
+  typeof data?.hrMessage !== "string" ||
+  typeof data?.marketInsight !== "string" ||
+  typeof data?.suggestedCounter !== "number" ||
+  !Array.isArray(data?.negotiationTips)
+) {
+  throw new Error("Invalid salary response");
+}
+
+setResult(data);
     } catch {
       toast({ title: "Failed to generate scripts", description: "Please try again.", variant: "destructive" });
     } finally {

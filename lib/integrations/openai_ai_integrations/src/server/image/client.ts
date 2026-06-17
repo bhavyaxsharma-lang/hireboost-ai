@@ -2,10 +2,33 @@ import fs from "node:fs";
 import OpenAI, { toFile } from "openai";
 import { Buffer } from "node:buffer";
 
-export const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+const isMockMode = process.env.MOCK_RESPONSES === "true";
+
+if (!isMockMode) {
+  if (!process.env.AI_INTEGRATIONS_OPENAI_BASE_URL) {
+    throw new Error(
+      "AI_INTEGRATIONS_OPENAI_BASE_URL must be set. Did you forget to provision the OpenAI AI integration?",
+    );
+  }
+
+  if (!process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
+    throw new Error(
+      "AI_INTEGRATIONS_OPENAI_API_KEY must be set. Did you forget to provision the OpenAI AI integration?",
+    );
+  }
+}
+
+export const openai = isMockMode
+  ? ({
+      images: {
+        generate: async () => ({ data: [{ b64_json: "" }] }),
+        edit: async () => ({ data: [{ b64_json: "" }] }),
+      },
+    } as any)
+  : new OpenAI({
+      apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+    });
 
 /**
  * Generate an image and return as Buffer.

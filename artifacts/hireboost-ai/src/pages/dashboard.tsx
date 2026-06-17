@@ -58,7 +58,15 @@ export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useGetDashboardStats();
   const { data: activity, isLoading: activityLoading } = useGetRecentActivity();
 
-  const firstName = user?.name?.split(" ")[0] ?? "there";
+const storedName =
+  typeof window !== "undefined"
+    ? localStorage.getItem("userName")
+    : "";
+
+const firstName =
+  user?.name?.split(" ")[0] ||
+  storedName?.split(" ")[0] ||
+  "Friend";
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-8">
@@ -171,9 +179,12 @@ export default function Dashboard() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold truncate">{item.title}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {item.subtitle} · {format(new Date(item.createdAt), "MMM d, h:mm a")}
-                      </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+  {item.subtitle ? `${item.subtitle} · ` : ""}
+  {item.createdAt
+    ? format(new Date(item.createdAt), "MMM d, h:mm a")
+    : "Unknown date"}
+</p>
                     </div>
                     <div className="shrink-0">
                       {item.score != null && (
@@ -219,8 +230,8 @@ export default function Dashboard() {
           <CardContent className="flex-1">
             {!statsLoading && stats?.topJobRoles && stats.topJobRoles.length > 0 ? (
               <div className="flex flex-wrap gap-2">
-                {stats.topJobRoles.map((role) => (
-                  <span key={role} className="rounded-full bg-primary/10 text-primary border border-primary/20 px-3 py-1 text-xs font-semibold">
+                {stats.topJobRoles.map((role, index) => (
+  <span key={`${role}-${index}`} className="rounded-full bg-primary/10 text-primary border border-primary/20 px-3 py-1 text-xs font-semibold">
                     {role}
                   </span>
                 ))}

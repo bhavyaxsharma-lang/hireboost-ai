@@ -202,12 +202,22 @@ export default function JDPrep() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jobDescription, questionCount: Number(questionCount) }),
       });
-      const data = await res.json();
+      let data;
+
+try {
+  data = await res.json();
+} catch {
+  throw new Error("Invalid server response");
+}
       if (!res.ok) {
         toast({ title: "Error", description: data.error || "Something went wrong.", variant: "destructive" });
         return;
       }
-      setResult(data as JDResult);
+     if (!data?.analysis || !Array.isArray(data?.questions)) {
+  throw new Error("Invalid response");
+}
+
+setResult(data);
     } catch {
       toast({ title: "Network error", description: "Could not connect. Please try again.", variant: "destructive" });
     } finally {

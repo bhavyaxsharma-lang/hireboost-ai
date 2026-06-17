@@ -3,6 +3,7 @@ import { openai } from "@workspace/integrations-openai-ai-server";
 import { requireAuth } from "../middleware/requireAuth";
 
 const router = Router();
+const isMockMode = process.env.MOCK_RESPONSES === "true";
 
 // POST /salary/generate
 router.post("/generate", requireAuth, async (req, res) => {
@@ -16,7 +17,15 @@ router.post("/generate", requireAuth, async (req, res) => {
     skills?: unknown;
   };
 
-  if (typeof body.role !== "string" || body.role.trim().length < 2) {
+  const userId = req.userId;
+
+if (!userId) {
+  return res.status(401).json({
+    error: "Authentication required",
+  });
+}
+
+if (typeof body.role !== "string" || body.role.trim().length < 2) {
     res.status(400).json({ error: "role is required" });
     return;
   }
@@ -42,6 +51,23 @@ router.post("/generate", requireAuth, async (req, res) => {
     : Math.round(offeredSalary * 1.15);
   const location = typeof body.location === "string" ? body.location.trim().slice(0, 100) : "India";
   const skills = typeof body.skills === "string" ? body.skills.trim().slice(0, 300) : "";
+
+  if (isMockMode) {
+    res.json({
+      counterOfferScript: "Based on my 14 years of RPA experience, I would request a CTC closer to ₹27 LPA to reflect the value I deliver in automation and process transformation. I appreciate the offer and remain enthusiastic about this role, and I believe this figure is aligned with current market benchmarks for senior UiPath practitioners.",
+      hrMessage: "Subject: Compensation Discussion — RPA Role\n\nDear Hiring Team,\n\nThank you for offering me the RPA position. I am very excited about the opportunity and the chance to contribute to your automation initiatives. Based on my 14 years of UiPath and RPA experience, I would like to discuss a package closer to ₹27 LPA, which better reflects the market and the specialised skills I bring. I hope we can find a mutually agreeable number so I can join with confidence and commitment.\n\nWarm regards,\n[Your Name]",
+      marketInsight: "A senior RPA professional in India with 14 years of experience typically commands 25-30 LPA, especially for UiPath automation roles. Your leverage is strong due to deep domain expertise and process automation leadership.",
+      suggestedCounter: 2700000,
+      negotiationTips: [
+        "Lead with gratitude for the offer and then frame the counter around your impact.",
+        "Use market benchmarks from UiPath/RPA roles to justify the ask.",
+        "Keep the conversation collaborative and ask about total compensation flexibility.",
+      ],
+      recommendedCTC: "27 LPA",
+      negotiationScript: "Based on my 14 years of RPA experience, I would request a CTC closer to ₹27 LPA to reflect the value I deliver in automation and process transformation.",
+    });
+    return;
+  }
 
   try {
     const prompt = `You are an expert salary negotiation coach helping job seekers in India negotiate better compensation packages.
@@ -79,9 +105,23 @@ Generate comprehensive salary negotiation material. Return ONLY valid JSON:
       negotiationTips: string[];
     };
 
-    try {
-      result = JSON.parse(content) as typeof result;
-    } catch {
+   try {
+  const parsed = JSON.parse(content);
+
+  if (
+    !parsed ||
+    typeof parsed !== "object" ||
+    typeof parsed.counterOfferScript !== "string" ||
+    typeof parsed.hrMessage !== "string" ||
+    typeof parsed.marketInsight !== "string" ||
+    typeof parsed.suggestedCounter !== "number" ||
+    !Array.isArray(parsed.negotiationTips)
+  ) {
+    throw new Error("Invalid AI response");
+  }
+
+  result = parsed;
+} catch {
       const suggestedCounter = Math.round(targetSalary * 1.05);
       result = {
         counterOfferScript: `Thank you so much for the offer — I'm genuinely excited about this opportunity. I've done thorough market research for the ${role} role in ${location}, and based on my ${experience} years of experience, I was expecting compensation closer to ₹${targetSalary.toLocaleString()} per annum. Is there any flexibility to move towards that number? I'm very motivated to make this work.`,
@@ -96,10 +136,12 @@ Generate comprehensive salary negotiation material. Return ONLY valid JSON:
       };
     }
 
-    res.json(result);
+    return res.json(result);
   } catch (err) {
     req.log.error({ err }, "Error generating salary negotiation");
-    res.status(500).json({ error: "Failed to generate negotiation scripts" });
+    return res.status(500).json({
+  error: "Failed to generate negotiation scripts",
+});
   }
 });
 

@@ -28,38 +28,115 @@ export default function Auth() {
   const registerMutation = useRegisterUser();
   const isLoading = loginMutation.isPending || registerMutation.isPending;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+ const handleSubmit = (e: React.FormEvent) => {
+  e.preventDefault();
 
-    if (isLogin) {
-      loginMutation.mutate(
-        { data: { email, password } },
-        {
-          onSuccess: () => {
-            toast({ title: "Welcome back!" });
-            setLocation("/dashboard");
-            window.location.reload();
-          },
-          onError: (error) => {
-            toast({ title: "Login Failed", description: error.error || "Please check your credentials.", variant: "destructive" });
-          },
-        }
-      );
-    } else {
-      registerMutation.mutate(
-        { data: { name, email, password } },
-        {
-          onSuccess: (data) => {
-            toast({ title: "Check your inbox", description: data.message });
-            setIsLogin(true);
-          },
-          onError: (error) => {
-            toast({ title: "Registration Failed", description: error.error || "An error occurred.", variant: "destructive" });
-          },
-        }
-      );
+  if (isLogin) {
+    loginMutation.mutate(
+      {
+        data: {
+          email: email.trim(),
+          password,
+        },
+      },
+      {
+        onSuccess: (data: any) => {
+          if (import.meta.env.DEV) {
+            console.log("LOGIN RESPONSE:", data);
+          }
+
+          if (data?.token) {
+            localStorage.removeItem("authToken");
+            localStorage.removeItem("userName");
+            localStorage.removeItem("userEmail");
+
+            localStorage.setItem("authToken", data.token);
+
+            localStorage.setItem(
+              "userName",
+              data?.user?.name || data?.name || ""
+            );
+
+            localStorage.setItem(
+              "userEmail",
+              data?.user?.email || email.trim()
+            );
+          }
+
+          toast({
+            title: "Welcome back!",
+          });
+
+          setLocation("/dashboard");
+        },
+
+        onError: (error: any) => {
+          toast({
+            title: "Login Failed",
+            description:
+              error?.error || "Please check your credentials.",
+            variant: "destructive",
+          });
+        },
+      }
+    );
+
+    return;
+  }
+
+  // Registration validation
+  if (name.trim().length < 2) {
+    toast({
+      title: "Invalid Name",
+      description: "Please enter your full name.",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  if (password.length < 8) {
+    toast({
+      title: "Weak Password",
+      description: "Password must be at least 8 characters long.",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  registerMutation.mutate(
+    {
+      data: {
+        name: name.trim(),
+        email: email.trim(),
+        password,
+      },
+    },
+    {
+      onSuccess: (data: any) => {
+        toast({
+          title: "Check your inbox",
+          description: data?.message || "Registration successful.",
+        });
+
+        setIsLogin(true);
+
+        // Optional: clear form
+        setName("");
+        setEmail("");
+        setPassword("");
+      },
+
+      onError: (error: any) => {
+        toast({
+          title: "Registration Failed",
+          description:
+            error?.error || "An error occurred.",
+          variant: "destructive",
+        });
+      },
     }
-  };
+  );
+};
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] flex">

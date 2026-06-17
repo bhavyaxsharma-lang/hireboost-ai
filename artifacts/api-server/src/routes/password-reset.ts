@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { db, pool } from "@workspace/db";
 import { users, passwordResetOtps } from "@workspace/db";
-import { eq, and, gt, sql } from "drizzle-orm";
+import { eq, and,sql } from "drizzle-orm";
 import { sendOtpEmail } from "../lib/email";
 
 const router = Router();
@@ -42,6 +42,8 @@ function checkEmailRateLimit(email: string): boolean {
 // POST /auth/send-otp
 // Accepts { email } — generates a 6-digit OTP, stores hashed copy, sends via Resend.
 router.post("/send-otp", async (req, res) => {
+  
+
   const { email } = req.body as { email?: string };
 
   if (!email || typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -49,7 +51,9 @@ router.post("/send-otp", async (req, res) => {
     return;
   }
 
-  const normalizedEmail = email.toLowerCase().trim();
+ const normalizedEmail = email.toLowerCase().trim();
+
+
 
   if (!checkEmailRateLimit(normalizedEmail)) {
     res.status(429).json({
@@ -59,11 +63,12 @@ router.post("/send-otp", async (req, res) => {
   }
 
   try {
-    const [user] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.email, normalizedEmail))
-      .limit(1);
+const [user] = await db
+  .select({ id: users.id, email: users.email })
+  .from(users)
+  .where(sql`LOWER(${users.email}) = ${normalizedEmail}`)
+  .limit(1);
+
 
     if (!user) {
       // Dummy hash keeps response time comparable to the registered-email path,
@@ -96,9 +101,10 @@ router.post("/send-otp", async (req, res) => {
     // Respond before sending email so SMTP latency cannot reveal account existence.
     res.json({ message: "If that email is registered, an OTP has been sent." });
 
-    sendOtpEmail({ to: normalizedEmail, otp }).catch((emailErr: unknown) => {
-      req.log.error({ err: emailErr }, "Failed to send OTP email");
-    });
+   sendOtpEmail({ to: normalizedEmail, otp }).catch((emailErr: unknown) => {
+  
+  req.log.error({ err: emailErr }, "Failed to send OTP email");
+});
   } catch (err) {
     req.log.error({ err }, "Error sending OTP");
     res.status(500).json({ error: "Failed to send OTP. Please try again." });
@@ -185,8 +191,11 @@ router.post("/verify-otp-reset", async (req, res) => {
 
       // OTP verified — look up user and update password atomically with OTP consumption
       const userResult = await tx.execute(sql`
-        SELECT id FROM users WHERE email = ${normalizedEmail} LIMIT 1
-      `);
+  SELECT id
+  FROM users
+  WHERE LOWER(email) = ${normalizedEmail}
+  LIMIT 1
+`);
       const userId = (userResult.rows[0] as { id: number } | undefined)?.id;
 
       if (!userId) {
@@ -194,6 +203,7 @@ router.post("/verify-otp-reset", async (req, res) => {
       }
 
       const passwordHash = await bcrypt.hash(newPassword, 10);
+      
 
       await tx.execute(sql`UPDATE users SET password_hash = ${passwordHash}, token_version = token_version + 1 WHERE id = ${userId}`);
       await tx.execute(sql`UPDATE password_reset_otps SET used = true WHERE id = ${otpRecord.id}`);

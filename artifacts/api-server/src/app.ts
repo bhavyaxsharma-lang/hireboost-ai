@@ -85,9 +85,11 @@ if (process.env.ALLOWED_ORIGIN) {
   // domain (mobile canvas). Both need to reach the API from different origins.
   if (process.env.REPLIT_DEV_DOMAIN) {
     allowedOriginsSet.add(`https://${process.env.REPLIT_DEV_DOMAIN}`);
-  } else {
-    allowedOriginsSet.add("http://localhost:5173");
   }
+
+  allowedOriginsSet.add("http://localhost:5173");
+  allowedOriginsSet.add("http://127.0.0.1:5173");
+  allowedOriginsSet.add("http://192.168.1.15:5173");
   if (process.env.REPLIT_EXPO_DEV_DOMAIN) {
     allowedOriginsSet.add(`https://${process.env.REPLIT_EXPO_DEV_DOMAIN}`);
   }
@@ -123,7 +125,15 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   if (!STATE_CHANGING_METHODS.has(req.method)) { next(); return; }
   const origin = req.headers.origin;
   if (origin !== undefined && !allowedOriginsSet.has(origin)) {
-    res.status(403).json({ error: "Forbidden: invalid request origin" });
+    console.log("BLOCKED ORIGIN:", origin);
+    console.log("ALLOWLIST:", [...allowedOriginsSet]);
+
+    res.status(403).json({
+      error: "Forbidden: invalid request origin",
+      origin,
+      allowlist: [...allowedOriginsSet]
+    });
+
     return;
   }
   next();
@@ -314,44 +324,44 @@ if (razorpayEnabled) {
 }
 
 // Session middleware — PostgreSQL-backed store so sessions survive restarts
-const sessionSecret = process.env.SESSION_SECRET;
+
+const isMockMode = process.env.MOCK_RESPONSES === "true";
+const sessionSecret =
+  process.env.SESSION_SECRET ||
+  (isMockMode ? "mock-session-secret" : undefined);
+
 if (!sessionSecret) {
   throw new Error("SESSION_SECRET must be set");
 }
 
 const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) {
+if (!isMockMode && !databaseUrl) {
   throw new Error("DATABASE_URL must be set");
 }
 
-const PgSession = connectPgSimple(session);
+const sessionOptions: session.SessionOptions = {
+  secret: sessionSecret,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    sameSite: "lax",
+    secure: isProduction,
+    maxAge: 1000 * 60 * 60 * 24 * 7,
+  },
+};
 
-app.use(
-  session({
-    store: new PgSession({
-      conString: databaseUrl,
-      tableName: "user_sessions",
-      createTableIfMissing: true,
-      // Prune expired sessions every hour
-      pruneSessionInterval: 60 * 60,
-    }),
-    secret: sessionSecret,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      // secure must be true in production (served over HTTPS via Replit proxy)
-      // trust proxy (set above) ensures express knows the connection is HTTPS
-      secure: isProduction,
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-      // SameSite=lax: the frontend and API share the same domain (path-based
-      // routing), so lax is sufficient and prevents cross-site request forgery.
-      // "none" is not needed and would allow browsers to send the cookie on
-      // requests originating from other sites.
-      sameSite: "lax",
-    },
-  }),
-);
+if (!isMockMode) {
+  const PgSession = connectPgSimple(session);
+  sessionOptions.store = new PgSession({
+    conString: databaseUrl,
+    tableName: "user_sessions",
+    createTableIfMissing: true,
+    // Prune expired sessions every hour
+    pruneSessionInterval: 60 * 60,
+  });
+}
+
+app.use(session(sessionOptions));
 
 // Populate req.userId from the active server session. This runs before the
 // bearer middleware so cookie-authenticated requests are resolved first.
@@ -409,7 +419,7 @@ const userAiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
-    return req.userId ? `user:${req.userId}` : `ip:${ipKeyGenerator(req)}`;
+    return req.userId ? `user:${req.userId}` : `ip:${ipKeyGenerator(req as any)}`;
   },
   message: { error: "Too many AI requests, please slow down." },
 });

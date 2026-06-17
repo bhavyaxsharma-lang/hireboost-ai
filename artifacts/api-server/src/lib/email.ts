@@ -45,6 +45,10 @@ async function sendEmail(opts: {
   const { to, subject, html, text } = opts;
 
   const transporter = createTransporter();
+  console.log("=== EMAIL DEBUG ===");
+console.log("GMAIL_USER:", process.env.GMAIL_USER);
+console.log("GMAIL_APP_PASSWORD exists:", !!process.env.GMAIL_APP_PASSWORD);
+console.log("TO:", to);
 
   if (!transporter) {
     logger.warn(
@@ -59,7 +63,15 @@ async function sendEmail(opts: {
     ? `HireBoost AI <${gmailUser}>`
     : "HireBoost AI <onboarding@resend.dev>";
 
-  await transporter.sendMail({ from, to, subject, html, text });
+  const info = await transporter.sendMail({
+  from,
+  to,
+  subject,
+  html,
+  text,
+});
+
+console.log("EMAIL SENT:", info.messageId);
   logger.info({ to, subject }, "Email sent");
 }
 

@@ -80,7 +80,15 @@ function StarRating({ rating }: { rating: number | null | undefined }) {
 ───────────────────────────────────────────────────────── */
 export default function InterviewSession() {
   const { id } = useParams<{ id: string }>();
-  const sessionId = parseInt(id ?? "0", 10);
+  const sessionId = Number(id);
+
+if (!Number.isInteger(sessionId) || sessionId <= 0) {
+  return (
+    <div className="p-8 text-center">
+      Invalid interview session.
+    </div>
+  );
+}
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -126,7 +134,7 @@ export default function InterviewSession() {
   const currentQuestionIndex = session.questions.findIndex((q) => !q.userAnswer);
   const isCompleted = session.status === "completed" || currentQuestionIndex === -1;
   const currentQuestion = !isCompleted ? session.questions[currentQuestionIndex] : null;
-  const progressPercent = (session.answeredQuestions / Math.max(session.totalQuestions, 1)) * 100;
+  
 
   const handleSubmit = async () => {
     if (!currentAnswer.trim() || !currentQuestion || isSubmitting) return;
@@ -244,7 +252,7 @@ export default function InterviewSession() {
         </motion.div>
 
         {/* Q&A pairs */}
-        {visibleQuestions.map((q, idx) => (
+        {visibleQuestions.map((q) => (
           <div key={q.id} className="space-y-4">
 
             {/* Question bubble (AI) */}
@@ -307,7 +315,7 @@ export default function InterviewSession() {
                         <StarRating rating={q.rating} />
                       </div>
                       <p className="text-sm leading-relaxed">{q.aiFeedback}</p>
-                      {q.rating && (
+                      {q.rating != null && (
                         <div
                           className={`text-xs font-medium px-2 py-0.5 rounded-full w-fit ${
                             q.rating >= 4
@@ -413,7 +421,7 @@ export default function InterviewSession() {
                   You answered {session.answeredQuestions} of {session.totalQuestions} questions.
                 </p>
               </div>
-              {session.averageRating && (
+              {session.averageRating != null && (
                 <div className="flex flex-col items-center gap-1">
                   <div className="flex items-center gap-2">
                     <StarRating rating={Math.round(session.averageRating)} />

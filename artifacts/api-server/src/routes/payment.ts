@@ -1,12 +1,13 @@
 import { Router } from "express";
+import { requireAuth } from "../middleware/requireAuth";
 import Razorpay from "razorpay";
 import crypto from "crypto";
 import { db, payments } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 
 const router = Router();
-
-const RESUME_PRICE_PAISE = 9900; // ₹99
+// TEST PRICE - ₹199
+const RESUME_PRICE_PAISE = 19900; // ₹199 
 
 function getRazorpay() {
   const keyId = process.env.RAZORPAY_KEY_ID;
@@ -17,13 +18,16 @@ function getRazorpay() {
   return new Razorpay({ key_id: keyId, key_secret: keySecret });
 }
 
-// POST /payment/create-order — creates a Razorpay order for ₹99
-router.post("/create-order", async (req, res) => {
+// POST /payment/create-order — creates a Razorpay order for ₹199
+router.post("/create-order", requireAuth, async (req, res) => {
   const userId = req.userId;
-  if (!userId) {
-    res.status(401).json({ error: "Not authenticated" });
-    return;
-  }
+
+if (!userId) {
+  return res.status(401).json({
+    error: "Authentication required",
+  });
+}
+  
 
   try {
     const razorpay = getRazorpay();
@@ -54,12 +58,15 @@ router.post("/create-order", async (req, res) => {
 });
 
 // POST /payment/verify — verify Razorpay signature after successful payment
-router.post("/verify", async (req, res) => {
-  const userId = req.userId;
-  if (!userId) {
-    res.status(401).json({ error: "Not authenticated" });
-    return;
-  }
+router.post("/verify", requireAuth, async (req, res) => {
+ const userId = req.userId;
+
+if (!userId) {
+  return res.status(401).json({
+    error: "Authentication required",
+  });
+}
+  
 
   const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body as {
     razorpay_order_id?: string;
@@ -83,10 +90,27 @@ router.post("/verify", async (req, res) => {
     .update(`${razorpay_order_id}|${razorpay_payment_id}`)
     .digest("hex");
 
-  if (expectedSignature !== razorpay_signature) {
-    res.status(400).json({ error: "Invalid payment signature" });
-    return;
-  }
+ const expectedBuffer = Buffer.from(
+  expectedSignature,
+  "utf8"
+);
+
+const actualBuffer = Buffer.from(
+  razorpay_signature,
+  "utf8"
+);
+
+if (
+  expectedBuffer.length !== actualBuffer.length ||
+  !crypto.timingSafeEqual(
+    expectedBuffer,
+    actualBuffer
+  )
+) {
+  return res.status(400).json({
+    error: "Invalid payment signature",
+  });
+}
 
   try {
     // Server-to-server confirmation: fetch the payment from Razorpay and verify
@@ -127,12 +151,17 @@ router.post("/verify", async (req, res) => {
     try {
       // The TypeScript type only declares RazorpayPaginationOptions but Razorpay's
       // REST API accepts `payment_id` as a query filter; cast to pass it through.
-      const disputeList = await razorpay.disputes.all(
-        { payment_id: razorpay_payment_id } as Parameters<typeof razorpay.disputes.all>[0],
-      );
-      const adverseDispute = disputeList.items.find((d) =>
-        ADVERSE_DISPUTE_STATUSES.has(d.status),
-      );
+     const disputeList = await razorpay.disputes.all(
+  { payment_id: razorpay_payment_id } as Parameters<typeof razorpay.disputes.all>[0],
+);
+
+const disputes = Array.isArray((disputeList as any).items)
+  ? (disputeList as any).items
+  : [];
+
+const adverseDispute = disputes.find((d: any) =>
+  ADVERSE_DISPUTE_STATUSES.has(d.status),
+);
       if (adverseDispute) {
         req.log.warn(
           { razorpay_payment_id, disputeId: adverseDispute.id, disputeStatus: adverseDispute.status },

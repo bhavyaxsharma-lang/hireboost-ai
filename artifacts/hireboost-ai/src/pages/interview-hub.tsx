@@ -115,7 +115,18 @@ export default function InterviewHub() {
     createSession.mutate(
       { data: { jobRole, difficulty, questionCount: parseInt(questionCount, 10) } },
       {
-        onSuccess: (session) => setLocation(`/interview/${session.id}`),
+        onSuccess: (session) => {
+  if (!session?.id) {
+    toast({
+      title: "Interview Error",
+      description: "Failed to create interview session.",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  setLocation(`/interview/${session.id}`);
+},
         onError: (err) => toast({
           title: "Failed to start interview",
           description: (err as { error?: string }).error ?? "Please try again later.",

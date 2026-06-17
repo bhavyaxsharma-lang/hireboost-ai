@@ -114,7 +114,7 @@ export default function Home() {
             </div>
 
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm font-medium text-muted-foreground mt-2">
-              {["No credit card required", "Free 2 rewrites included", "Instant results"].map((t) => (
+              {["No credit card required", "Free 1 rewrite included", "Instant results"].map((t) => (
                 <div key={t} className="flex items-center gap-1.5">
                   <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
                   {t}
@@ -133,10 +133,14 @@ export default function Home() {
             <div className="absolute inset-0 bg-gradient-to-tr from-primary/20 via-transparent to-blue-500/10 rounded-3xl blur-2xl" />
             <div className="relative rounded-3xl border border-border/60 bg-card/60 backdrop-blur shadow-2xl overflow-hidden p-1">
               <img
-                src="/hero.png"
-                alt="HireBoost AI platform"
-                className="w-full rounded-2xl object-contain"
-              />
+  src="/hero.png"
+  alt="HireBoost AI platform"
+  loading="eager"
+  onError={(e) => {
+    e.currentTarget.style.display = "none";
+  }}
+  className="w-full rounded-2xl object-contain"
+/>
             </div>
           </motion.div>
         </div>

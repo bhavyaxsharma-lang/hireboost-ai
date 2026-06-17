@@ -18,7 +18,7 @@ import ResumeAnalyzer from "@/pages/resume";
 import InterviewHub from "@/pages/interview-hub";
 import InterviewSession from "@/pages/interview-session";
 import History from "@/pages/history";
-import LinkedInGenerator from "@/pages/linkedin";
+
 import SalaryNegotiation from "@/pages/salary";
 
 const queryClient = new QueryClient();
@@ -89,13 +89,7 @@ function Router() {
         </ProtectedRoute>
       </Route>
 
-      <Route path="/linkedin">
-        <ProtectedRoute>
-          <Layout>
-            <LinkedInGenerator />
-          </Layout>
-        </ProtectedRoute>
-      </Route>
+   
 
       <Route path="/salary">
         <ProtectedRoute>
