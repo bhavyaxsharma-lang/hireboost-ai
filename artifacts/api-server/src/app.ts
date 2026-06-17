@@ -343,11 +343,12 @@ const sessionOptions: session.SessionOptions = {
   secret: sessionSecret,
   resave: false,
   saveUninitialized: false,
-  cookie: {
-    sameSite: "lax",
-    secure: isProduction,
-    maxAge: 1000 * 60 * 60 * 24 * 7,
-  },
+cookie: {
+  httpOnly: true,
+  sameSite: "none",
+  secure: true,
+  maxAge: 1000 * 60 * 60 * 24 * 7,
+},
 };
 
 if (!isMockMode) {
