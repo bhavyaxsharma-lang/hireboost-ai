@@ -424,5 +424,5 @@ router.post("/parse-file", requireAuth, (req, res, next) => {
     error: err?.message || "Failed to parse file"
   });
 }
-
+});
 export default router;
