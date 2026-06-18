@@ -413,10 +413,10 @@ router.post("/parse-file", requireAuth, (req, res, next) => {
       fileType: detectedType,
     });
 } catch (err: any) {
-  console.error("PARSE FILE ERROR");
+  console.error("========== PARSE FILE ERROR ==========");
   console.error(err);
-  console.error(err?.message);
-  console.error(err?.stack);
+  console.error("MESSAGE:", err?.message);
+  console.error("STACK:", err?.stack);
 
   req.log.error({ err }, "File parsing error");
 
