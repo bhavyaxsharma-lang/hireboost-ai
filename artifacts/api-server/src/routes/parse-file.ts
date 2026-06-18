@@ -412,10 +412,17 @@ router.post("/parse-file", requireAuth, (req, res, next) => {
       fileName: originalname,
       fileType: detectedType,
     });
-  } catch (err) {
-    req.log.error({ err }, "File parsing error");
-    res.status(500).json({ error: "Failed to parse the file. Please ensure it is not password-protected and try again." });
-  }
-});
+} catch (err: any) {
+  console.error("PARSE FILE ERROR");
+  console.error(err);
+  console.error(err?.message);
+  console.error(err?.stack);
+
+  req.log.error({ err }, "File parsing error");
+
+  res.status(500).json({
+    error: err?.message || "Failed to parse file"
+  });
+}
 
 export default router;
