@@ -95,7 +95,13 @@ Generate comprehensive salary negotiation material. Return ONLY valid JSON:
       messages: [{ role: "user", content: prompt }],
     });
 
-    const content = completion.choices[0]?.message?.content ?? "{}";
+    const rawContent = completion.choices[0]?.message?.content ?? "{}";
+
+const content = rawContent
+  .replace(/^```json\s*/i, "")
+  .replace(/^```\s*/i, "")
+  .replace(/\s*```$/, "")
+  .trim();
 
     let result: {
       counterOfferScript: string;

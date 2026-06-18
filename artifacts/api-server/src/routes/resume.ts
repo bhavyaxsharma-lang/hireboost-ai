@@ -224,7 +224,13 @@ Return a JSON object with exactly these fields:
       ],
     });
 
-    const content = completion.choices[0]?.message?.content ?? "{}";
+    const rawContent = completion.choices[0]?.message?.content ?? "{}";
+
+const content = rawContent
+  .replace(/^```json\s*/i, "")
+  .replace(/^```\s*/i, "")
+  .replace(/\s*```$/, "")
+  .trim();
     let analysisData: {
       atsScore: number;
       missingKeywords: string[];

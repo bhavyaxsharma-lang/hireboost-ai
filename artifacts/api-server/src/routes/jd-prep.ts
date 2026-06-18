@@ -89,7 +89,13 @@ Mix categories: include Technical, Behavioral, Role-Specific, and Situational qu
       messages: [{ role: "user", content: prompt }],
     });
 
-    const content = completion.choices[0]?.message?.content ?? "{}";
+    const rawContent = completion.choices[0]?.message?.content ?? "{}";
+
+const content = rawContent
+  .replace(/^```json\s*/i, "")
+  .replace(/^```\s*/i, "")
+  .replace(/\s*```$/, "")
+  .trim();
 
     let result: {
       analysis: {
@@ -126,9 +132,13 @@ Mix categories: include Technical, Behavioral, Role-Specific, and Situational qu
 }
 
     res.json(result);
-  } catch (err) {
-    req.log.error({ err }, "Error generating JD prep");
-    res.status(500).json({ error: "Failed to generate questions. Please try again." });
+  } catch (err: any) {
+    console.error("JD PREP ERROR");
+    console.error(err);
+
+    res.status(500).json({
+      error: String(err?.message || err)
+    });
   }
 });
 
