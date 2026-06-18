@@ -153,7 +153,7 @@ Mix behavioral, technical, and situational questions appropriate for the role.`;
 
       
       const completion = await openai.chat.completions.create({
-        model: "gpt-5.2",
+        model: "gpt-4o-mini",
         max_completion_tokens: 8192,
         messages: [{ role: "user", content: prompt }],
       });
@@ -380,7 +380,7 @@ Return ONLY valid JSON with exactly these fields:
 }`;
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-5.2",
+      model: "gpt-4o-mini",
       max_completion_tokens: 8192,
       messages: [{ role: "user", content: prompt }],
     });

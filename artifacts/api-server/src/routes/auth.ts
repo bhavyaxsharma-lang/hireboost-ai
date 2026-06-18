@@ -102,23 +102,32 @@ router.post("/login", async (req, res) => {
 
     req.session.userId = user.id;
 
-    const token = signToken({
-      userId: user.id,
+req.session.save((err) => {
+  if (err) {
+    req.log.error({ err }, "Session save failed");
+    return res.status(500).json({
+      error: "Session save failed",
+    });
+  }
+
+  const token = signToken({
+    userId: user.id,
+    name: user.name,
+    email: user.email,
+    tokenVersion: user.tokenVersion,
+  });
+
+  res.json({
+    user: {
+      id: user.id,
       name: user.name,
       email: user.email,
-      tokenVersion: user.tokenVersion,
-    });
-
-    res.json({
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        createdAt: user.createdAt,
-      },
-      token,
-      message: "Logged in successfully",
-    });
+      createdAt: user.createdAt,
+    },
+    token,
+    message: "Logged in successfully",
+  });
+});
   } catch (err) {
     req.log.error({ err }, "Error logging in user");
     res.status(500).json({ error: "Internal server error" });
