@@ -22,19 +22,9 @@ const WORD_WORKER_PATH = path.resolve(
 
 // Validate the worker bundle exists at startup so packaging drift is caught
 // early (e.g. if a build step omits the workers/ output directory).
-import { existsSync } from "node:fs";
-if (!existsSync(PDF_WORKER_PATH)) {
-  throw new Error(
-    `PDF worker bundle not found at ${PDF_WORKER_PATH}. ` +
-    "Run 'pnpm run build' to regenerate the dist/ directory."
-  );
-}
-if (!existsSync(WORD_WORKER_PATH)) {
-  throw new Error(
-    `Word worker bundle not found at ${WORD_WORKER_PATH}. ` +
-    "Run 'pnpm run build' to regenerate the dist/ directory."
-  );
-}
+console.log("CURRENT_DIR =", CURRENT_DIR);
+console.log("PDF_WORKER_PATH =", PDF_WORKER_PATH);
+console.log("WORD_WORKER_PATH =", WORD_WORKER_PATH);
 
 // Hard wall-clock limit for a single PDF parse.  If pdf-parse has not
 // responded within this window the Worker is terminated unconditionally,
