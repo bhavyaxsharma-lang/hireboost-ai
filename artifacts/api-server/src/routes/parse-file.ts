@@ -11,34 +11,41 @@ import { requireAuth } from "../middleware/requireAuth";
 // hard-terminated on timeout — releasing all CPU and memory immediately.
 const CURRENT_DIR = path.dirname(fileURLToPath(import.meta.url));
 
-const PDF_WORKER_PATH = path.resolve(
-  CURRENT_DIR,
-  "../workers/pdf-parse-worker.mjs"
+const PDF_WORKER_PATH = new URL(
+  "../workers/pdf-parse-worker.mjs",
+  import.meta.url
 );
 
-const WORD_WORKER_PATH = path.resolve(
-  CURRENT_DIR,
-  "../workers/word-parse-worker.mjs"
+const WORD_WORKER_PATH = new URL(
+  "../workers/word-parse-worker.mjs",
+  import.meta.url
 );
+
+
 
 console.log("=================================");
 console.log("PARSE FILE STARTUP DIAGNOSTICS");
 console.log("CURRENT_DIR =", CURRENT_DIR);
 
-console.log("PDF_WORKER_PATH =", PDF_WORKER_PATH);
 console.log(
-  "PDF worker exists:",
-  fs.existsSync(PDF_WORKER_PATH)
+  "PDF PATH =",
+  fileURLToPath(PDF_WORKER_PATH)
 );
 
 console.log(
-  "WORD worker exists:",
-  fs.existsSync(WORD_WORKER_PATH)
+  "PDF EXISTS =",
+  fs.existsSync(fileURLToPath(PDF_WORKER_PATH))
 );
-console.log("PDF EXISTS =", fs.existsSync(PDF_WORKER_PATH));
 
-console.log("WORD_WORKER_PATH =", WORD_WORKER_PATH);
-console.log("WORD EXISTS =", fs.existsSync(WORD_WORKER_PATH));
+console.log(
+  "WORD PATH =",
+  fileURLToPath(WORD_WORKER_PATH)
+);
+
+console.log(
+  "WORD EXISTS =",
+  fs.existsSync(fileURLToPath(WORD_WORKER_PATH))
+);
 
 console.log("=================================");
 
@@ -131,10 +138,10 @@ function wordParseInWorker(buf: Buffer): Promise<{ text: string }> {
   return new Promise((resolve, reject) => {
     const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
 
-    const worker = new Worker(WORD_WORKER_PATH, {
-      workerData: { buffer: ab },
-      transferList: [ab as ArrayBuffer],
-    });
+   const worker = new Worker(WORD_WORKER_PATH, {
+  workerData: { buffer: ab },
+  transferList: [ab as ArrayBuffer],
+});
 
     const timer = setTimeout(() => {
       worker.terminate();
