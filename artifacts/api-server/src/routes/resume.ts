@@ -216,8 +216,8 @@ Return a JSON object with exactly these fields:
 
   try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      max_completion_tokens: 8192,
+      model: "gpt-4.1",
+      max_completion_tokens: 12000,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -661,8 +661,8 @@ Return resume content only.
 
 try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      max_completion_tokens: 8192,
+      model: "gpt-4.1",
+      max_completion_tokens: 12000,
       messages: [
         { role: "system", content: "You are an expert resume writer. Rewrite resumes to be ATS-optimized and compelling." },
         { role: "user", content: prompt },
