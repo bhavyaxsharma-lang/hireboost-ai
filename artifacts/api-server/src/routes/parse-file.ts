@@ -13,22 +13,25 @@ const CURRENT_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 const PDF_WORKER_PATH = path.resolve(
   CURRENT_DIR,
-  "../workers/pdf-parse-worker.mjs"
+  "./workers/pdf-parse-worker.mjs"
 );
 
 const WORD_WORKER_PATH = path.resolve(
   CURRENT_DIR,
-  "../workers/word-parse-worker.mjs"
+  "./workers/word-parse-worker.mjs"
 );
 
-// Validate the worker bundle exists at startup so packaging drift is caught
-// early (e.g. if a build step omits the workers/ output directory).
+console.log("=================================");
+console.log("PARSE FILE STARTUP DIAGNOSTICS");
 console.log("CURRENT_DIR =", CURRENT_DIR);
+
 console.log("PDF_WORKER_PATH =", PDF_WORKER_PATH);
+console.log("PDF EXISTS =", fs.existsSync(PDF_WORKER_PATH));
+
 console.log("WORD_WORKER_PATH =", WORD_WORKER_PATH);
-console.log("CURRENT_DIR =", CURRENT_DIR);
-console.log("PDF_WORKER_PATH =", PDF_WORKER_PATH);
-console.log("WORD_WORKER_PATH =", WORD_WORKER_PATH);
+console.log("WORD EXISTS =", fs.existsSync(WORD_WORKER_PATH));
+
+console.log("=================================");
 
 
 
@@ -70,10 +73,16 @@ function pdfParseInWorker(
     // (zero-copy).  After transfer, `buf` must not be accessed here.
     const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
 
-    const worker = new Worker(PDF_WORKER_PATH, {
-      workerData: { buffer: ab },
-      transferList: [ab as ArrayBuffer],
-    });
+    console.log("Starting PDF worker:", PDF_WORKER_PATH);
+
+const worker = new Worker(PDF_WORKER_PATH, {
+  workerData: { buffer: ab },
+  transferList: [ab as ArrayBuffer],
+});
+
+worker.on("online", () => {
+  console.log("PDF worker online");
+});
 
     const timer = setTimeout(() => {
       worker.terminate();
@@ -90,10 +99,15 @@ function pdfParseInWorker(
       }
     });
 
-    worker.on("error", (err) => {
-      clearTimeout(timer);
-      reject(err);
-    });
+  worker.on("error", (err) => {
+  console.error("PDF WORKER ERROR");
+  console.error(err);
+  console.error("MESSAGE:", err?.message);
+  console.error("STACK:", err?.stack);
+
+  clearTimeout(timer);
+  reject(err);
+});
   });
 }
 
@@ -128,10 +142,15 @@ function wordParseInWorker(buf: Buffer): Promise<{ text: string }> {
       }
     });
 
-    worker.on("error", (err) => {
-      clearTimeout(timer);
-      reject(err);
-    });
+ worker.on("error", (err) => {
+  console.error(" WORD WORKER ERROR");
+  console.error(err);
+  console.error("MESSAGE:", err?.message);
+  console.error("STACK:", err?.stack);
+
+  clearTimeout(timer);
+  reject(err);
+});
   });
 }
 
