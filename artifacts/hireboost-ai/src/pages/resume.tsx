@@ -585,18 +585,25 @@ function AutoFixButton({
 
 const fetchStatus = async () => {
   try {
-    const res = await fetch(`${getApiBase()}/resume/rewrite-status?t=${Date.now()}`, {
-  credentials: "include",
-  cache: "no-store",
-});
+    const token = localStorage.getItem("authToken");
 
-    if (res.ok) {
-  const data = await res.json() as RewriteStatus;
+    const statusRes = await fetch(
+      `${getApiBase()}/resume/rewrite-status?t=${Date.now()}`,
+      {
+        credentials: "include",
+        cache: "no-store",
+        headers: {
+          ...(token
+            ? { Authorization: `Bearer ${token}` }
+            : {}),
+        },
+      }
+    );
 
-  
-
-  setRewriteStatus(data);
-}
+    if (statusRes.ok) {
+      const data = await statusRes.json();
+      setRewriteStatus(data);
+    }
   } catch {
     // ignore
   }
@@ -642,11 +649,23 @@ const doRewrite = async () => {
         }),
       }
     );
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({})) as { error?: string; message?: string };
-        // Use the human-readable message field if available (e.g. 402 payment_required)
-        throw new Error(d.message ?? d.error ?? "Rewrite failed.");
-      }
+    if (!res.ok) {
+  const d = await res.json().catch(() => ({})) as {
+    error?: string;
+    message?: string;
+  };
+
+  if (res.status === 402 || d.error === "payment_required") {
+    await handlePayAndFix();
+    return;
+  }
+
+  throw new Error(
+    d.message ??
+    d.error ??
+    "Rewrite failed."
+  );
+}
       const responseData = await res.json();
 
 
@@ -692,11 +711,21 @@ toast({
         throw new Error("Payment SDK failed to load. Please check your internet connection and try again.");
       }
 
-      const orderRes = await fetch(`${getApiBase()}/payment/create-order`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      });
+const token = localStorage.getItem("authToken");
+
+const orderRes = await fetch(
+  `${getApiBase()}/payment/create-order`,
+  {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token
+        ? { Authorization: `Bearer ${token}` }
+        : {})
+    }
+  }
+);
       if (!orderRes.ok) {
         const d = await orderRes.json().catch(() => ({})) as { error?: string };
         throw new Error(d.error ?? "Failed to create payment order.");
@@ -718,16 +747,31 @@ toast({
           name: "HireBoost AI",
           description: "Resume Auto-Fix Credit",
           order_id: orderId,
-          handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
-            const verifyRes = await fetch(`${getApiBase()}/payment/verify`, {
-              method: "POST",
-              credentials: "include",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(response),
-            });
-            if (!verifyRes.ok) { reject(new Error("Payment verification failed. Contact support.")); return; }
-            resolve();
-          },
+handler: async (response) => {
+  const token = localStorage.getItem("authToken");
+
+  const verifyRes = await fetch(
+    `${getApiBase()}/payment/verify`,
+    {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token
+          ? { Authorization: `Bearer ${token}` }
+          : {})
+      },
+      body: JSON.stringify(response)
+    }
+  );
+
+  if (!verifyRes.ok) {
+    reject(new Error("Payment verification failed. Contact support."));
+    return;
+  }
+
+  resolve();
+},
           modal: {
             ondismiss: () => reject(new Error("cancelled")),
             // In Android WebView, allow the modal to escape the WebView sandbox
@@ -764,33 +808,43 @@ toast({
     }
   };
 
-  const handleClick = async () => {
-    // Always fetch a fresh status right before acting to avoid a race condition
-    // where rewriteStatus is still null (useEffect hasn't resolved yet) and we
-    // mistakenly call doRewrite() when the user actually needs to pay.
-    let currentStatus = rewriteStatus;
-    try {
-      const statusRes = await fetch(`${getApiBase()}/resume/rewrite-status?t=${Date.now()}`, {
-  credentials: "include",
-  cache: "no-store",
-});
-      if (statusRes.ok) {
-        const fresh = await statusRes.json() as RewriteStatus;
-        setRewriteStatus(fresh);
-        currentStatus = fresh;
+const handleClick = async () => {
+  let currentStatus = rewriteStatus;
+
+  try {
+    const token = localStorage.getItem("authToken");
+
+    const statusRes = await fetch(
+      `${getApiBase()}/resume/rewrite-status?t=${Date.now()}`,
+      {
+        credentials: "include",
+        cache: "no-store",
+        headers: {
+          ...(token
+            ? { Authorization: `Bearer ${token}` }
+            : {}),
+        },
       }
-    } catch { /* fall back to cached state */ }
+    );
 
-    const needsPayment = currentStatus
-      ? currentStatus.freeUsed >= currentStatus.freeLimit && !currentStatus.hasPaidCredit
-      : false;
-
-    if (needsPayment) {
-      await handlePayAndFix();
-    } else {
-      await doRewrite();
+    if (statusRes.ok) {
+      const fresh = await statusRes.json() as RewriteStatus;
+      setRewriteStatus(fresh);
+      currentStatus = fresh;
     }
-  };
+  } catch {}
+
+  const needsPayment = currentStatus
+    ? currentStatus.freeUsed >= currentStatus.freeLimit &&
+      !currentStatus.hasPaidCredit
+    : false;
+
+  if (needsPayment) {
+    await handlePayAndFix();
+  } else {
+    await doRewrite();
+  }
+};
 const hasPaidCredit = rewriteStatus?.hasPaidCredit ?? false;
   const freeLeft = rewriteStatus ? Math.max(0, rewriteStatus.freeLimit - rewriteStatus.freeUsed) : null;
   const needsPayment = rewriteStatus
