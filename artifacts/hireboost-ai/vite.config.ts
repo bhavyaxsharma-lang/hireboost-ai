@@ -37,7 +37,7 @@ export default defineConfig({
     // triggering CORS errors in the browser.
     proxy: {
       "/api": {
-        target: "http://localhost:8080",
+        target: process.env.API_URL || "http://localhost:8080",
         changeOrigin: true,
         secure: false,
       },
