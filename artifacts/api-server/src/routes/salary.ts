@@ -90,7 +90,7 @@ Generate comprehensive salary negotiation material. Return ONLY valid JSON:
 }`;
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4.1",
       max_completion_tokens: 2048,
       messages: [{ role: "user", content: prompt }],
     });
