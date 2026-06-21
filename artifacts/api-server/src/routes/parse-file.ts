@@ -12,12 +12,12 @@ import { requireAuth } from "../middleware/requireAuth";
 const CURRENT_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 const PDF_WORKER_PATH = new URL(
-  "../workers/pdf-parse-worker.mjs",
+  "./workers/pdf-parse-worker.mjs",
   import.meta.url
 );
 
 const WORD_WORKER_PATH = new URL(
-  "../workers/word-parse-worker.mjs",
+  "./workers/word-parse-worker.mjs",
   import.meta.url
 );
 
