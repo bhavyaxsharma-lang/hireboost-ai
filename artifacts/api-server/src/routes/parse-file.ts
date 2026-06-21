@@ -1,5 +1,6 @@
 // File upload + text extraction route
 import { Router } from "express";
+import fs from "node:fs";
 import multer from "multer";
 import { Worker } from "node:worker_threads";
 import path from "node:path";
@@ -29,8 +30,7 @@ console.log("CURRENT_DIR =", CURRENT_DIR);
 console.log("PDF_WORKER_PATH =", PDF_WORKER_PATH);
 console.log("WORD_WORKER_PATH =", WORD_WORKER_PATH);
 
-console.log("PDF EXISTS =", fs.existsSync(PDF_WORKER_PATH));
-console.log("WORD EXISTS =", fs.existsSync(WORD_WORKER_PATH));
+
 
 // Hard wall-clock limit for a single PDF parse.  If pdf-parse has not
 // responded within this window the Worker is terminated unconditionally,
