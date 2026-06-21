@@ -25,6 +25,12 @@ const WORD_WORKER_PATH = path.resolve(
 console.log("CURRENT_DIR =", CURRENT_DIR);
 console.log("PDF_WORKER_PATH =", PDF_WORKER_PATH);
 console.log("WORD_WORKER_PATH =", WORD_WORKER_PATH);
+console.log("CURRENT_DIR =", CURRENT_DIR);
+console.log("PDF_WORKER_PATH =", PDF_WORKER_PATH);
+console.log("WORD_WORKER_PATH =", WORD_WORKER_PATH);
+
+console.log("PDF EXISTS =", fs.existsSync(PDF_WORKER_PATH));
+console.log("WORD EXISTS =", fs.existsSync(WORD_WORKER_PATH));
 
 // Hard wall-clock limit for a single PDF parse.  If pdf-parse has not
 // responded within this window the Worker is terminated unconditionally,
