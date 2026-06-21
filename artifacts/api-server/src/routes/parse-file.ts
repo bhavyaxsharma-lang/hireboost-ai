@@ -8,17 +8,16 @@ import { requireAuth } from "../middleware/requireAuth";
 // Path to the compiled PDF worker bundle.  The worker is a separate esbuild
 // entry point so it runs in an isolated Node.js Worker thread and can be
 // hard-terminated on timeout — releasing all CPU and memory immediately.
-const PDF_WORKER_PATH = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "workers",
-  "pdf-parse-worker.mjs"
+const CURRENT_DIR = path.dirname(fileURLToPath(import.meta.url));
+
+const PDF_WORKER_PATH = path.resolve(
+  CURRENT_DIR,
+  "../workers/pdf-parse-worker.mjs"
 );
 
-// Path to the compiled Word worker bundle (handles both .docx and .doc).
-const WORD_WORKER_PATH = path.join(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "workers",
-  "word-parse-worker.mjs"
+const WORD_WORKER_PATH = path.resolve(
+  CURRENT_DIR,
+  "../workers/word-parse-worker.mjs"
 );
 
 // Validate the worker bundle exists at startup so packaging drift is caught
