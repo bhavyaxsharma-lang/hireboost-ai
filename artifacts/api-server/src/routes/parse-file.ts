@@ -13,12 +13,12 @@ const CURRENT_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 const PDF_WORKER_PATH = path.resolve(
   CURRENT_DIR,
-  "./workers/pdf-parse-worker.mjs"
+  "../workers/pdf-parse-worker.mjs"
 );
 
 const WORD_WORKER_PATH = path.resolve(
   CURRENT_DIR,
-  "./workers/word-parse-worker.mjs"
+  "../workers/word-parse-worker.mjs"
 );
 
 console.log("=================================");
@@ -26,6 +26,15 @@ console.log("PARSE FILE STARTUP DIAGNOSTICS");
 console.log("CURRENT_DIR =", CURRENT_DIR);
 
 console.log("PDF_WORKER_PATH =", PDF_WORKER_PATH);
+console.log(
+  "PDF worker exists:",
+  fs.existsSync(PDF_WORKER_PATH)
+);
+
+console.log(
+  "WORD worker exists:",
+  fs.existsSync(WORD_WORKER_PATH)
+);
 console.log("PDF EXISTS =", fs.existsSync(PDF_WORKER_PATH));
 
 console.log("WORD_WORKER_PATH =", WORD_WORKER_PATH);
@@ -320,7 +329,7 @@ const upload = multer({
 // POST /resume/parse-file
 // Accepts multipart/form-data with field "file" (.pdf or .docx only)
 // Returns { text: string, wordCount: number, fileName: string, fileType: string }
-router.post("/parse-file", requireAuth, (req, res, next) => {
+router.post("/parse-file", (req, res, next) => {
   upload.single("file")(req, res, (err) => {
     if (err) {
       if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
