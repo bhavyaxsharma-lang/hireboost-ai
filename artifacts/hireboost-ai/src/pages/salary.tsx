@@ -178,11 +178,17 @@ export default function SalaryNegotiation() {
         ...(form.skills ? { skills: form.skills.trim() } : {}),
       };
 
-      const res = await fetch(`${BASE}/api/salary/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+    const token = localStorage.getItem("token");
+
+const res = await fetch(`${BASE}/api/salary/generate`, {
+  method: "POST",
+  credentials: "include",
+  headers: {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  },
+  body: JSON.stringify(body),
+});
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
 
