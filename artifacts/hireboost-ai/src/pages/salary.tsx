@@ -178,7 +178,7 @@ export default function SalaryNegotiation() {
         ...(form.skills ? { skills: form.skills.trim() } : {}),
       };
 
-    const token = localStorage.getItem("token");
+    const token = localStorage.getItem("authToken");
 
 const res = await fetch(`${BASE}/api/salary/generate`, {
   method: "POST",
