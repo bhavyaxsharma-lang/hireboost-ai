@@ -197,11 +197,22 @@ export default function JDPrep() {
     setIsLoading(true);
     setResult(null);
     try {
-      const res = await fetch("/api/interview/jd-prep", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobDescription, questionCount: Number(questionCount) }),
-      });
+ const token = localStorage.getItem("authToken");
+
+const res = await fetch("/api/interview/jd-prep", {
+  method: "POST",
+  credentials: "include",
+  headers: {
+    "Content-Type": "application/json",
+    ...(token
+      ? { Authorization: `Bearer ${token}` }
+      : {}),
+  },
+  body: JSON.stringify({
+    jobDescription,
+    questionCount: Number(questionCount),
+  }),
+});
       let data;
 
 try {
