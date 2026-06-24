@@ -84,7 +84,7 @@ Return ONLY valid JSON in this exact structure:
 Mix categories: include Technical, Behavioral, Role-Specific, and Situational questions. Make questions and answers highly specific to the actual JD content — not generic.`;
 
     const completion = await openai.chat.completions.create({
-      model: "gpt-4.1",
+      model: "gpt-5-mini",
       max_completion_tokens: 8192,
       messages: [{ role: "user", content: prompt }],
     });

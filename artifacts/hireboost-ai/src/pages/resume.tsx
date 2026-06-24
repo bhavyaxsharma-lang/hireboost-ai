@@ -300,26 +300,35 @@ const contactText = contactParts.join(" • ");
 
   const docChildren: InstanceType<typeof Paragraph>[] = [];
 
-  // ── Candidate Name ──────────────────────────────
+// Candidate Name
 if (name) {
   docChildren.push(
     new Paragraph({
       children: [
         new TextRun({
-          text: name,
+          text: name.toUpperCase(),
           bold: true,
-          size: 36,
-          color: HEADER_TEXT,
+          size: 42,
+          color: "1F2937",
           font: "Calibri",
         }),
       ],
       alignment: AlignmentType.CENTER,
       spacing: { after: 60 },
-      shading: {
-        type: ShadingType.SOLID,
-        color: HEADER_BG,
-        fill: HEADER_BG,
+    })
+  );
+
+  // Accent line below name
+  docChildren.push(
+    new Paragraph({
+      border: {
+        bottom: {
+          style: BorderStyle.SINGLE,
+          size: 12,
+          color: "2E86AB",
+        },
       },
+      spacing: { after: 80 },
     })
   );
 }
@@ -333,51 +342,27 @@ if (title) {
           text: title,
           italics: true,
           size: 24,
-          color: HEADER_TEXT,
-          font: "Calibri",
+          color: "555555",
         }),
       ],
       alignment: AlignmentType.CENTER,
-      spacing: { after: 80 },
-      shading: {
-        type: ShadingType.SOLID,
-        color: HEADER_BG,
-        fill: HEADER_BG,
-      },
+      spacing: { after: 50 },
     })
   );
 }
 
   // ── Contact info row (same dark bg) ─────────────────
- if (contactText) {
+if (contactText) {
   docChildren.push(
     new Paragraph({
       children: [
         new TextRun({
           text: contactText,
-          color: CONTACT_TEXT,
           size: 18,
+          color: "666666",
         }),
       ],
       alignment: AlignmentType.CENTER,
-      spacing: { after: 100 },
-      shading: {
-        type: ShadingType.SOLID,
-        color: HEADER_BG,
-        fill: HEADER_BG,
-      },
-    })
-  );
-
-  docChildren.push(
-    new Paragraph({
-      border: {
-        bottom: {
-          style: BorderStyle.SINGLE,
-          size: 12,
-          color: "D9E2EC",
-        },
-      },
       spacing: { after: 150 },
     })
   );
