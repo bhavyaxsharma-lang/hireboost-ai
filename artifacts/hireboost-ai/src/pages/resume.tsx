@@ -255,19 +255,109 @@ const SECTION_HEADERS = new Set([
   "PROFESSIONAL SUMMARY",
   "EXECUTIVE SUMMARY",
   "PROFESSIONAL PROFILE",
+  "PROFILE SUMMARY",
+
+  "CORE COMPETENCIES",
+  "TECHNICAL SKILLS",
+  "SKILLS",
+  "TOOLS & TECHNOLOGIES",
+  "TECHNOLOGIES",
+
+  "PROFESSIONAL EXPERIENCE",
+  "WORK EXPERIENCE",
+
   "KEY ACHIEVEMENTS",
-  "KEY PROJECTS",
-  "KEY RESPONSIBILITIES",
+  "ACHIEVEMENTS",
   "SELECTED ACHIEVEMENTS",
   "CAREER HIGHLIGHTS",
+
+  "KEY PROJECTS",
+  "PROJECTS",
+  "KEY RESPONSIBILITIES",
+
+  "CERTIFICATIONS",
+  "CERTIFICATION",
+  "PROFESSIONAL CERTIFICATIONS",
+  "CERTIFICATIONS & TRAINING",
+  "TRAINING",
+
+  "EDUCATION",
+  "ACADEMIC QUALIFICATIONS",
+  "EDUCATIONAL QUALIFICATIONS",
 ]);
+
+function isCompanyHeader(line: string): boolean {
+  const upper = line.toUpperCase().trim();
+
+const COMPANY_KEYWORDS = [
+  "PVT LTD",
+  "PRIVATE LIMITED",
+  "LIMITED",
+  "LTD",
+  "INC",
+  "CORP",
+  "LLC",
+  "LLP",
+];
+
+  if (COMPANY_KEYWORDS.some(keyword => upper.includes(keyword))) {
+    return true;
+  }
+
+return (
+ (
+  line === line.toUpperCase() ||
+  /^[A-Z][A-Za-z0-9&().,\-\s]+$/.test(line)
+) &&
+  line.length > 10 &&
+  line.length < 50 &&
+  !SECTION_HEADERS.has(upper) &&
+  !line.includes(":") &&
+  !line.includes(",") &&
+
+  !/\d{4}/.test(line) &&
+
+  !upper.includes("AUTOMATION") &&
+  !upper.includes("ANALYSIS") &&
+  !upper.includes("MANAGEMENT") &&
+  !upper.includes("TRANSFORMATION") &&
+  !upper.includes("SKILLS") &&
+  !upper.includes("TECHNOLOGIES") &&
+  !upper.includes("ENGINEER") &&
+  !upper.includes("DEVELOPER") &&
+  !upper.includes("CONSULTANT") &&
+  !upper.includes("ARCHITECT") &&
+  !upper.includes("SPECIALIST") &&
+  !upper.includes("ANALYST") &&
+  !upper.includes("LEAD") &&
+  !upper.includes("MANAGER") &&
+  !upper.includes("PROJECT") &&
+  !upper.includes("CLIENT")
+);
+}
 
 function isHeaderLine(line: string): boolean {
   const trimmed = line.trim();
-  if (!trimmed || trimmed.length > 60) return false;
+
+if (!trimmed || trimmed.length > 120) {
+  return false;
+}
+
   const upper = trimmed.toUpperCase().replace(/:$/, "");
-  if (SECTION_HEADERS.has(upper)) return true;
-  if (trimmed === trimmed.toUpperCase() && /[A-Z]/.test(trimmed) && !trimmed.includes("@")) return true;
+
+  if (SECTION_HEADERS.has(upper)) {
+    return true;
+  }
+
+  if (
+    trimmed === trimmed.toUpperCase() &&
+    /[A-Z]/.test(trimmed) &&
+    !trimmed.includes("@") &&
+    !isCompanyHeader(trimmed)
+  ) {
+    return true;
+  }
+
   return false;
 }
 
@@ -276,9 +366,7 @@ async function buildDocx(text: string, fileName: string): Promise<void> {
     Document, Packer, Paragraph, TextRun, AlignmentType, BorderStyle, ShadingType,
   } = await import("docx");
 
-  const HEADER_BG = "2E86AB";
-  const HEADER_TEXT = "FFFFFF";
-  const CONTACT_TEXT = "C5DDEF";
+
   const SECTION_BG = "EDF4FF";
   const SECTION_COLOR = "2E86AB";
   const ACCENT_LINE = "2E86AB";
@@ -293,10 +381,46 @@ async function buildDocx(text: string, fileName: string): Promise<void> {
   const headerLines = lines.slice(0, firstSectionIdx).map((l) => l.trim()).filter(Boolean);
   const bodyLines = lines.slice(firstSectionIdx);
 
- const name = headerLines[0] ?? "";
-const title = headerLines[1] ?? "";
-const contactParts = headerLines.slice(2);
-const contactText = contactParts.join(" • ");
+const looksLikeContact = (line: string) =>
+  line.includes("@") ||
+  /\+?\d[\d\s()-]{7,}/.test(line) ||
+  /linkedin/i.test(line) ||
+  /github/i.test(line) ||
+  /portfolio/i.test(line) ||
+  /behance/i.test(line) ||
+  /dribbble/i.test(line) ||
+  /www\./i.test(line) ||
+  /https?:\/\//i.test(line) ||
+  /india|bangalore|bengaluru|mumbai|delhi|new delhi|hyderabad|chennai|pune|kolkata|gurgaon|gurugram|noida|ahmedabad|kochi|coimbatore/i.test(line);
+
+const name =
+  headerLines.find(
+    (line) =>
+      line &&
+      !looksLikeContact(line) &&
+      !SECTION_HEADERS.has(line.toUpperCase()) &&
+      line.length < 60 &&
+    !/manager|consultant|engineer|developer|architect|analyst|lead|director|specialist|project manager|program manager|associate manager|senior manager|principal consultant/i.test(line)
+  )?.trim() ?? "";
+
+const title =
+  headerLines.find(
+    (line) =>
+      line !== name &&
+      !looksLikeContact(line) &&
+      line.length < 100
+  ) ?? "";
+
+const contactParts = headerLines.filter(
+  (line) =>
+    line !== name &&
+    line !== title &&
+    looksLikeContact(line)
+);
+const contactText = contactParts
+  .filter(Boolean)
+  .join(" • ")
+  .replace(/\s*•\s*•\s*/g, " • ");
 
   const docChildren: InstanceType<typeof Paragraph>[] = [];
 
@@ -308,27 +432,27 @@ if (name) {
         new TextRun({
           text: name.toUpperCase(),
           bold: true,
-          size: 42,
-          color: "1F2937",
+          size: 44,
+          color: "FFFFFF",
           font: "Calibri",
         }),
       ],
       alignment: AlignmentType.CENTER,
-      spacing: { after: 60 },
-    })
-  );
 
-  // Accent line below name
-  docChildren.push(
-    new Paragraph({
-      border: {
-        bottom: {
-          style: BorderStyle.SINGLE,
-          size: 12,
-          color: "2E86AB",
-        },
+      shading: {
+        type: ShadingType.SOLID,
+        fill: "2E86AB",
+        color: "2E86AB",
       },
-      spacing: { after: 80 },
+      indent: {
+  left: 1200,
+  right: 1200,
+},
+
+      spacing: {
+        before: 80,
+        after: 80,
+      },
     })
   );
 }
@@ -340,7 +464,7 @@ if (title) {
       children: [
         new TextRun({
           text: title,
-          italics: true,
+          bold: true,
           size: 24,
           color: "555555",
         }),
@@ -358,8 +482,8 @@ if (contactText) {
       children: [
         new TextRun({
           text: contactText,
-          size: 18,
-          color: "666666",
+          size: 20,
+          color: "555555",
         }),
       ],
       alignment: AlignmentType.CENTER,
@@ -380,7 +504,8 @@ if (contactText) {
       continue;
     }
 
-    if (isHeaderLine(line)) {
+    if (isHeaderLine(line) && !isCompanyHeader(line))
+  {
       // Section header: tinted background + blue bottom border
       docChildren.push(
         new Paragraph({
@@ -410,31 +535,89 @@ const bulletText = isBullet
   : line;
 
 // Detect company/project headers
+const isCompany = isCompanyHeader(line);
+
+const isProject =
+  /^project/i.test(line) ||
+  /^client/i.test(line) ||
+  /^engagement/i.test(line) ||
+  /^assignment/i.test(line) ||
+  /^initiative/i.test(line) ||
+  /^program/i.test(line) ||
+  /^implementation/i.test(line) ||
+  /^migration/i.test(line) ||
+  /^automation/i.test(line) ||
+  /^transformation/i.test(line) ||
+  /^erp/i.test(line) ||
+  /^sap/i.test(line) ||
+  /^role/i.test(line) ||
+  /^environment/i.test(line) ||
+  /^responsibilities/i.test(line) ||
+  /^objective/i.test(line);
+
+const isBusinessImpact =
+  /^business impact/i.test(line);
+
 const isSubHeader =
-  !isBullet &&
-  line.length < 90 &&
+  isCompany ||
+  isProject ||
+  isBusinessImpact ||
   (
-    line === line.toUpperCase() ||
-    /\d{4}/.test(line) ||
-    line.includes("PROJECT") ||
-    line.includes("CLIENT") ||
-    line.includes("AUTOMATION") ||
-    line.includes("TRANSFORMATION")
+    !isBullet &&
+    line.length < 90 &&
+    (
+      /\d{4}/.test(line) ||
+      line.includes("CLIENT")
+    )
   );
-  docChildren.push(
+docChildren.push(
   new Paragraph({
     children: [
       new TextRun({
         text: bulletText,
-        size: isSubHeader ? 24 : 20,
-        color: BODY_COLOR,
-        bold: isSubHeader,
+
+        size:
+          isCompany ? 28 :
+          isProject ? 22 :
+          isBusinessImpact ? 22 :
+          isSubHeader ? 24 :
+          20,
+
+        color:
+          isProject || isBusinessImpact
+            ? "2E86AB"
+            : BODY_COLOR,
+
+        bold:
+          isCompany ||
+          isProject ||
+          isBusinessImpact ||
+          isSubHeader,
+
         font: "Calibri",
       }),
     ],
+
     bullet: isBullet ? { level: 0 } : undefined,
-    indent: isBullet ? { left: 360, hanging: 180 } : undefined,
-    spacing: { after: isBullet ? 40 : 60 },
+
+    indent: isBullet
+      ? { left: 360, hanging: 180 }
+      : undefined,
+
+    spacing: {
+      before: isCompany ? 220 : 0,
+      after: isCompany ? 120 : isBullet ? 40 : 60,
+    },
+
+    border: isCompany
+      ? {
+          top: {
+            style: BorderStyle.SINGLE,
+            size: 4,
+            color: "D6D6D6",
+          },
+        }
+      : undefined,
   })
 );
 }

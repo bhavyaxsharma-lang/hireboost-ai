@@ -216,7 +216,7 @@ Return a JSON object with exactly these fields:
 
   try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
+      model: "gpt-5-mini",
       max_completion_tokens: 12000,
       messages: [
         { role: "system", content: systemPrompt },
