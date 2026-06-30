@@ -99,12 +99,28 @@ const [user] = await db
     });
 
     // Respond before sending email so SMTP latency cannot reveal account existence.
-    res.json({ message: "If that email is registered, an OTP has been sent." });
+try {
+  await sendOtpEmail({
+    to: normalizedEmail,
+    otp,
+  });
 
-   sendOtpEmail({ to: normalizedEmail, otp }).catch((emailErr: unknown) => {
-  
-  req.log.error({ err: emailErr }, "Failed to send OTP email");
-});
+  return res.json({
+    message: "If that email is registered, an OTP has been sent.",
+  });
+} catch (err: any) {
+  console.error("========== EMAIL ERROR ==========");
+  console.error("Message:", err?.message);
+  console.error("Code:", err?.code);
+  console.error("Response:", err?.response);
+  console.error("Response Code:", err?.responseCode);
+  console.error(err);
+  console.error("=================================");
+
+  return res.status(500).json({
+    error: "Email failed",
+  });
+}
   } catch (err) {
     req.log.error({ err }, "Error sending OTP");
     res.status(500).json({ error: "Failed to send OTP. Please try again." });
