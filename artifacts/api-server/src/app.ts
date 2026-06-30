@@ -40,6 +40,9 @@ app.use(
   }),
 );
 
+
+
+
 const isProduction = process.env.NODE_ENV === "production";
 
 // Build the set of origins that are permitted to make state-changing requests.
@@ -55,10 +58,11 @@ const isProduction = process.env.NODE_ENV === "production";
 // check NODE_ENV first.
 const allowedOriginsSet = new Set<string>();
 if (process.env.ALLOWED_ORIGIN) {
-  // Explicit override always wins (e.g. custom domain cross-origin setups).
-  // Strip trailing slash to avoid allowlist mismatches (Origin headers never
-  // include a trailing slash per spec).
-  allowedOriginsSet.add(process.env.ALLOWED_ORIGIN.replace(/\/$/, ""));
+  process.env.ALLOWED_ORIGIN
+    .split(",")
+    .map(origin => origin.trim().replace(/\/$/, ""))
+    .filter(Boolean)
+    .forEach(origin => allowedOriginsSet.add(origin));
 } else if (isProduction) {
   // REPLIT_DOMAINS is a comma-separated list of production domain names
   // provided by the Replit platform (e.g. "my-app.replit.app,custom.com").
