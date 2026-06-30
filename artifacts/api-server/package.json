@@ -29,6 +29,7 @@
     "pino": "^9",
     "pino-http": "^10",
     "razorpay": "^2.9.6",
+    "resend": "^6.16.0",
     "zod": "catalog:"
   },
   "devDependencies": {
