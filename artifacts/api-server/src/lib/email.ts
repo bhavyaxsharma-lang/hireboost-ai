@@ -43,7 +43,7 @@ export async function sendOtpEmail(opts: {
   `;
 
   const { error } = await resend.emails.send({
-    from: "HireBoost AI <onboarding@resend.dev>",
+  from: "HireBoost AI <support@support.hireboostai.com>",
     to,
     subject: "Reset Your HireBoost AI Password",
     html,
