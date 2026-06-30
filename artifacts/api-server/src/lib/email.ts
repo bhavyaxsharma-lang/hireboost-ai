@@ -14,12 +14,21 @@ function createTransporter() {
   const gmailPass = process.env.GMAIL_APP_PASSWORD;
 
   if (gmailUser && gmailPass) {
-    return nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 587,
-      secure: false, // STARTTLS
-      auth: { user: gmailUser, pass: gmailPass },
-    });
+return nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true, // SSL
+  auth: {
+    user: gmailUser,
+    pass: gmailPass,
+  },
+  connectionTimeout: 10000, // 10 seconds
+  greetingTimeout: 10000,
+  socketTimeout: 10000,
+  tls: {
+    rejectUnauthorized: true,
+  },
+});
   }
 
   // Resend SMTP fallback (requires verified domain for non-owner emails)
@@ -44,35 +53,48 @@ async function sendEmail(opts: {
 }): Promise<void> {
   const { to, subject, html, text } = opts;
 
-  const transporter = createTransporter();
-  console.log("=== EMAIL DEBUG ===");
+const transporter = createTransporter();
+
+if (!transporter) {
+  logger.warn(
+    { to, subject },
+    "No email credentials configured"
+  );
+  return;
+}
+
+console.log("=== EMAIL DEBUG ===");
 console.log("GMAIL_USER:", process.env.GMAIL_USER);
 console.log("GMAIL_APP_PASSWORD exists:", !!process.env.GMAIL_APP_PASSWORD);
 console.log("TO:", to);
 
-  if (!transporter) {
-    logger.warn(
-      { to, subject },
-      "No email credentials configured (GMAIL_USER/GMAIL_APP_PASSWORD or RESEND_API_KEY) — email skipped in dev mode"
-    );
-    return;
-  }
-
-  const gmailUser = process.env.GMAIL_USER;
-  const from = gmailUser
-    ? `HireBoost AI <${gmailUser}>`
-    : "HireBoost AI <onboarding@resend.dev>";
+// Verify SMTP connection first
+try {
+  await transporter.verify();
+  console.log("✅ SMTP connection successful");
 
   const info = await transporter.sendMail({
-  from,
-  to,
-  subject,
-  html,
-  text,
-});
+    from,
+    to,
+    subject,
+    html,
+    text,
+  });
 
-console.log("EMAIL SENT:", info.messageId);
+  console.log("EMAIL SENT:", info.messageId);
+  console.log(info);
+
   logger.info({ to, subject }, "Email sent");
+} catch (err: any) {
+  console.error("========== SMTP ERROR ==========");
+  console.error("Message:", err?.message);
+  console.error("Code:", err?.code);
+  console.error("Response:", err?.response);
+  console.error("Response Code:", err?.responseCode);
+  console.error(err);
+  console.error("================================");
+  throw err;
+}
 }
 
 /**
