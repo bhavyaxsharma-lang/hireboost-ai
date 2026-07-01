@@ -1,19 +1,21 @@
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { requireAuth } from "../middleware/requireAuth";
 import { openai } from "@workspace/integrations-openai-ai-server";
 
 const router = Router();
 const isMockMode = process.env.MOCK_RESPONSES === "true";
+const isProduction = process.env.NODE_ENV === "production";
 
 // POST /interview/jd-prep
 // Accepts { jobDescription, questionCount } — returns JD analysis + tailored Q&A
-router.post("/jd-prep", requireAuth, async (req, res) => {
+router.post("/jd-prep", requireAuth, async (req: Request, res: Response): Promise<Response | void> => {
 const userId = req.userId;
 
 if (!userId) {
-  return res.status(401).json({
+  res.status(401).json({
     error: "Authentication required",
   });
+  return;
 }
 
   const { jobDescription, questionCount = 8 } = req.body;
@@ -30,6 +32,11 @@ if (!userId) {
 
   try {
     if (isMockMode) {
+      if (isProduction) {
+        req.log.error("Mock mode is disabled in production for JD prep");
+        res.status(503).json({ error: "JD prep is temporarily unavailable" });
+        return;
+      }
       res.json({
         analysis: {
           roleTitle: "RPA Developer",

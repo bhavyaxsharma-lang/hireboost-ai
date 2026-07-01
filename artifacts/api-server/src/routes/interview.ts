@@ -1,5 +1,5 @@
 // Interview session routes
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { requireAuth } from "../middleware/requireAuth";
 import { db, interviewSessions, interviewQuestions } from "@workspace/db";
 import { eq, desc, isNull, and } from "drizzle-orm";
@@ -14,6 +14,7 @@ import {
 
 const router = Router();
 const isMockMode = process.env.MOCK_RESPONSES === "true";
+const isProduction = process.env.NODE_ENV === "production";
 const mockSessions = new Map<number, ReturnType<typeof formatSession>>();
 
 // Helper to format session with questions
@@ -63,23 +64,30 @@ function buildMockSession(sessionId: number, userId: number, jobRole: string, di
     averageRating: null,
     totalQuestions: questions.length,
     answeredQuestions: 0,
-    createdAt: new Date().toISOString(),
+    createdAt: new Date(),
     completedAt: null,
     questions,
   } as const;
 }
 
 // GET /interview/sessions
-router.get("/sessions", requireAuth,async (req, res) => {
+router.get("/sessions", requireAuth, async (req, res) => {
   const userId = req.userId;
 
 if (!userId) {
-  return res.status(401).json({
+  res.status(401).json({
     error: "Authentication required",
   });
+  return;
 }
 
   if (isMockMode) {
+    if (isProduction) {
+      req.log.error("Mock mode is disabled in production for interview sessions");
+      res.status(503).json({ error: "Interview sessions are temporarily unavailable" });
+      return;
+    }
+
     res.json(Array.from(mockSessions.values()));
     return;
   }
@@ -93,7 +101,7 @@ if (!userId) {
       .limit(20);
 
     res.json(
-      sessions.map((s) => ({
+      sessions.map((s: { id: number; userId: number; jobRole: string; difficulty: string; status: string; averageRating: number | null; totalQuestions: number; answeredQuestions: number; createdAt: Date | string; completedAt: Date | string | null }) => ({
         id: s.id,
         userId: s.userId,
         jobRole: s.jobRole,
@@ -117,9 +125,10 @@ router.post("/sessions", requireAuth, async (req, res) => {
   const userId = req.userId;
 
 if (!userId) {
-  return res.status(401).json({
+  res.status(401).json({
     error: "Authentication required",
   });
+  return;
 }
 
   const parseResult = CreateInterviewSessionBody.safeParse(req.body);
@@ -225,9 +234,10 @@ router.get("/sessions/:id", requireAuth, async (req, res) => {
   const userId = req.userId;
 
 if (!userId) {
-  return res.status(401).json({
+  res.status(401).json({
     error: "Authentication required",
   });
+  return;
 }
 
   const parseResult = GetInterviewSessionParams.safeParse({ id: Number(req.params.id) });
@@ -272,9 +282,10 @@ router.post("/sessions/:id/answer", requireAuth, async (req, res) => {
   const userId = req.userId;
 
 if (!userId) {
-  return res.status(401).json({
+  res.status(401).json({
     error: "Authentication required",
   });
+  return;
 }
 
   const paramsResult = SubmitAnswerParams.safeParse({ id: Number(req.params.id) });
@@ -306,7 +317,7 @@ if (!userId) {
         return;
       }
 
-      const question = session.questions.find((q: any) => q.id === questionId);
+      const question = session.questions.find((q: { id: number; userAnswer?: string | null; aiFeedback?: string | null; sampleAnswer?: string | null; rating?: number | null }) => q.id === questionId);
       if (!question) {
         res.status(404).json({ error: "Question not found" });
         return;
@@ -435,19 +446,20 @@ Return ONLY valid JSON with exactly these fields:
       .update(interviewQuestions)
       .set({ userAnswer: null })
       .where(and(eq(interviewQuestions.id, questionId), eq(interviewQuestions.userAnswer, SENTINEL)))
-      .catch((resetErr) => req.log.error({ resetErr }, "Failed to reset question sentinel after error"));
+      .catch((resetErr: unknown) => req.log.error({ resetErr }, "Failed to reset question sentinel after error"));
     res.status(500).json({ error: "Failed to evaluate answer" });
   }
 });
 
 // POST /interview/sessions/:id/complete - complete session
-router.post("/sessions/:id/complete",requireAuth, async (req, res) => {
+router.post("/sessions/:id/complete", requireAuth, async (req: Request, res: Response): Promise<Response | void> => {
 const userId = req.userId;
 
 if (!userId) {
-  return res.status(401).json({
+  res.status(401).json({
     error: "Authentication required",
   });
+  return;
 }
 
   const parseResult = CompleteInterviewSessionParams.safeParse({ id: Number(req.params.id) });
@@ -474,9 +486,9 @@ if (!userId) {
       .from(interviewQuestions)
       .where(eq(interviewQuestions.sessionId, session.id));
 
-    const ratedQuestions = questions.filter((q) => q.rating !== null);
+    const ratedQuestions = questions.filter((q: { rating: number | null }) => q.rating !== null);
     const avgRating = ratedQuestions.length > 0
-      ? ratedQuestions.reduce((sum, q) => sum + (q.rating ?? 0), 0) / ratedQuestions.length
+      ? ratedQuestions.reduce((sum: number, q: { rating: number | null }) => sum + (q.rating ?? 0), 0) / ratedQuestions.length
       : null;
 
     const [updated] = await db.update(interviewSessions)

@@ -4,6 +4,7 @@ import { requireAuth } from "../middleware/requireAuth";
 
 const router = Router();
 const isMockMode = process.env.MOCK_RESPONSES === "true";
+const isProduction = process.env.NODE_ENV === "production";
 
 // POST /salary/generate
 router.post("/generate", requireAuth, async (req, res) => {
@@ -53,6 +54,12 @@ if (typeof body.role !== "string" || body.role.trim().length < 2) {
   const skills = typeof body.skills === "string" ? body.skills.trim().slice(0, 300) : "";
 
   if (isMockMode) {
+    if (isProduction) {
+      req.log.error("Mock mode is disabled in production for salary negotiation");
+      res.status(503).json({ error: "Salary negotiation is temporarily unavailable" });
+      return;
+    }
+
     res.json({
       counterOfferScript: "Based on my 14 years of RPA experience, I would request a CTC closer to ₹27 LPA to reflect the value I deliver in automation and process transformation. I appreciate the offer and remain enthusiastic about this role, and I believe this figure is aligned with current market benchmarks for senior UiPath practitioners.",
       hrMessage: "Subject: Compensation Discussion — RPA Role\n\nDear Hiring Team,\n\nThank you for offering me the RPA position. I am very excited about the opportunity and the chance to contribute to your automation initiatives. Based on my 14 years of UiPath and RPA experience, I would like to discuss a package closer to ₹27 LPA, which better reflects the market and the specialised skills I bring. I hope we can find a mutually agreeable number so I can join with confidence and commitment.\n\nWarm regards,\n[Your Name]",

@@ -1,7 +1,4 @@
 import "dotenv/config";
-console.log("CWD:", process.cwd());
-console.log("DATABASE_URL:", process.env.DATABASE_URL ? "FOUND" : "MISSING");
-console.log("MOCK_RESPONSES:", process.env.MOCK_RESPONSES);
 import app from "./app";
 import { logger } from "./lib/logger";
 
@@ -25,5 +22,5 @@ app.listen(port, (err) => {
     process.exit(1);
   }
 
-  logger.info({ port }, "Server listening");
+  logger.info({ port, nodeEnv: process.env.NODE_ENV ?? "development" }, "Server listening");
 });

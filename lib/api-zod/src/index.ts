@@ -7,7 +7,6 @@ export { CreateInterviewSessionBody } from "./overrides";
 
 export * from "./generated/types/activityItem";
 export * from "./generated/types/activityItemType";
-export type { AnalyzeResumeBody } from "./generated/types/analyzeResumeBody";
 export * from "./generated/types/answerFeedback";
 export * from "./generated/types/authResponse";
 export * from "./generated/types/createInterviewSessionBodyDifficulty";
@@ -26,6 +25,4 @@ export * from "./generated/types/resumeAnalysis";
 export * from "./generated/types/resumeAnalysisSummary";
 export * from "./generated/types/resumeDailyUsage";
 export * from "./generated/types/resumeUploadResponse";
-export type { SubmitAnswerBody } from "./generated/types/submitAnswerBody";
-export type { UploadResumeBody } from "./generated/types/uploadResumeBody";
 export * from "./generated/types/user";

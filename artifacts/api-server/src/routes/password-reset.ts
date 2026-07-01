@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { db, pool } from "@workspace/db";
@@ -41,9 +41,7 @@ function checkEmailRateLimit(email: string): boolean {
 
 // POST /auth/send-otp
 // Accepts { email } — generates a 6-digit OTP, stores hashed copy, sends via Resend.
-router.post("/send-otp", async (req, res) => {
-  
-
+router.post("/send-otp", async (req: Request, res: Response): Promise<Response | void> => {
   const { email } = req.body as { email?: string };
 
   if (!email || typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -84,7 +82,7 @@ const [user] = await db
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
     // Invalidate previous unused OTPs and insert the new one atomically
-    await db.transaction(async (tx) => {
+    await db.transaction(async (tx: any) => {
       await tx
         .delete(passwordResetOtps)
         .where(and(eq(passwordResetOtps.email, normalizedEmail), eq(passwordResetOtps.used, false)));
@@ -129,7 +127,7 @@ try {
 
 // POST /auth/verify-otp-reset
 // Accepts { email, otp, newPassword } — validates OTP, updates password, revokes sessions.
-router.post("/verify-otp-reset", async (req, res) => {
+router.post("/verify-otp-reset", async (req: Request, res: Response): Promise<Response | void> => {
   const { email, otp, newPassword } = req.body as {
     email?: string;
     otp?: string;
@@ -155,7 +153,7 @@ router.post("/verify-otp-reset", async (req, res) => {
     // multiple requests cannot race past the failed-attempt ceiling.
     // Password update is also performed inside the same transaction so OTP
     // consumption and the new password are committed atomically.
-    const outcome = await db.transaction(async (tx) => {
+    const outcome = await db.transaction(async (tx: any) => {
       const result = await tx.execute(sql`
         SELECT id,
                otp_hash        AS "otpHash",
@@ -233,6 +231,11 @@ router.post("/verify-otp-reset", async (req, res) => {
     }
 
     // Revoke all active sessions so stolen cookies can't be reused
+    if (!pool) {
+      res.status(500).json({ error: "Session store is unavailable" });
+      return;
+    }
+
     await pool.query(
       `DELETE FROM user_sessions WHERE sess->>'userId' = $1`,
       [String(outcome.userId)]

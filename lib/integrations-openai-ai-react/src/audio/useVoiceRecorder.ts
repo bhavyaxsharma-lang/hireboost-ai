@@ -40,7 +40,7 @@ export function useVoiceRecorder() {
     mediaRecorderRef.current = recorder;
     chunksRef.current = [];
 
-    recorder.ondataavailable = (e) => {
+    recorder.ondataavailable = (e: BlobEvent) => {
       if (e.data.size > 0) chunksRef.current.push(e.data);
     };
 
@@ -59,7 +59,7 @@ export function useVoiceRecorder() {
       recorder.onstop = () => {
         const blobType = mimeTypeRef.current ?? recorder.mimeType ?? "audio/webm";
         const blob = new Blob(chunksRef.current, { type: blobType });
-        recorder.stream.getTracks().forEach((t) => t.stop());
+        recorder.stream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
         setState("stopped");
         resolve(blob);
       };

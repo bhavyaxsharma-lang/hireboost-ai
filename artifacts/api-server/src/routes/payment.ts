@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { requireAuth } from "../middleware/requireAuth";
 import Razorpay from "razorpay";
 import crypto from "crypto";
@@ -19,13 +19,14 @@ function getRazorpay() {
 }
 
 // POST /payment/create-order — creates a Razorpay order for ₹199
-router.post("/create-order", requireAuth, async (req, res) => {
+router.post("/create-order", requireAuth, async (req: Request, res: Response): Promise<Response | void> => {
   const userId = req.userId;
 
 if (!userId) {
-  return res.status(401).json({
+  res.status(401).json({
     error: "Authentication required",
   });
+  return;
 }
   
 
@@ -58,13 +59,14 @@ if (!userId) {
 });
 
 // POST /payment/verify — verify Razorpay signature after successful payment
-router.post("/verify", requireAuth, async (req, res) => {
+router.post("/verify", requireAuth, async (req: Request, res: Response): Promise<Response | void> => {
  const userId = req.userId;
 
 if (!userId) {
-  return res.status(401).json({
+  res.status(401).json({
     error: "Authentication required",
   });
+  return;
 }
   
 

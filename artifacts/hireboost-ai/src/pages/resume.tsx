@@ -915,7 +915,7 @@ const orderRes = await fetch(
           name: "HireBoost AI",
           description: "Resume Auto-Fix Credit",
           order_id: orderId,
-handler: async (response) => {
+handler: async (response: { razorpay_payment_id?: string; razorpay_order_id?: string; razorpay_signature?: string }) => {
   const token = localStorage.getItem("authToken");
 
   const verifyRes = await fetch(

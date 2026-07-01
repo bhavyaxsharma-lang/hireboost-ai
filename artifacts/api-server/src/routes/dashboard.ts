@@ -6,15 +6,17 @@ import { eq, desc, count, avg, sql } from "drizzle-orm";
 
 const router = Router();
 const isMockMode = process.env.MOCK_RESPONSES === "true";
+const isProduction = process.env.NODE_ENV === "production";
 
 // GET /dashboard/stats
 router.get("/stats", requireAuth, async (req, res) => {
 const userId = req.userId;
 
 if (!userId) {
-  return res.status(401).json({
+  res.status(401).json({
     error: "Authentication required",
   });
+  return;
 }
 
   try {
@@ -74,12 +76,12 @@ if (!userId) {
       .limit(5);
 
     const uniqueRoles = [
-  ...new Set(
-    topRolesResult
-      .map((r) => r.jobRole)
-      .filter(Boolean)
-  ),
-];
+      ...new Set(
+        topRolesResult
+          .map((r: { jobRole: string | null }) => r.jobRole)
+          .filter((role: string | null): role is string => Boolean(role))
+      ),
+    ];
 
     res.json({
       latestResumeScore: latestResumeResult[0]?.atsScore ?? null,
@@ -103,9 +105,10 @@ router.get("/recent-activity", requireAuth, async (req, res) => {
 const userId = req.userId;
 
 if (!userId) {
-  return res.status(401).json({
+  res.status(401).json({
     error: "Authentication required",
   });
+  return;
 }
 
   try {
@@ -173,7 +176,7 @@ if (!userId) {
 
     // Combine and sort by date
     const activities = [
-      ...recentResumes.map((r) => ({
+      ...recentResumes.map((r: { id: number; atsScore: number | null; jobTitle: string | null; createdAt: Date | string }) => ({
         id: `resume-${r.id}`,
         type: "resume_analysis" as const,
         title: "Resume Analyzed",
@@ -182,7 +185,7 @@ if (!userId) {
         rating: null,
         createdAt: r.createdAt,
       })),
-      ...recentInterviews.map((i) => ({
+      ...recentInterviews.map((i: { id: number; jobRole: string | null; status: string; averageRating: number | null; createdAt: Date | string }) => ({
         id: `interview-${i.id}`,
         type: (i.status === "completed" ? "interview_completed" : "interview_session") as "interview_completed" | "interview_session",
         title: i.status === "completed" ? "Interview Completed" : "Interview Started",
@@ -191,7 +194,7 @@ if (!userId) {
         rating: i.averageRating,
         createdAt: i.createdAt,
       })),
-    ].sort((a, b) => {
+    ].sort((a: { createdAt?: Date | string | null }, b: { createdAt?: Date | string | null }) => {
   const aTime = a.createdAt
     ? new Date(a.createdAt).getTime()
     : 0;

@@ -1,6 +1,12 @@
 import jwt from "jsonwebtoken";
 
-const secret = process.env.SESSION_SECRET ?? "dev-jwt-fallback-secret";
+const rawSecret = process.env.SESSION_SECRET?.trim();
+const isProduction = process.env.NODE_ENV === "production";
+const secret = rawSecret ?? (isProduction ? "" : "dev-jwt-fallback-secret");
+
+if (!secret) {
+  throw new Error("SESSION_SECRET is required in production");
+}
 
 export interface JwtPayload {
   userId: number;

@@ -102,32 +102,35 @@ router.post("/login", async (req, res) => {
 
     req.session.userId = user.id;
 
-req.session.save((err) => {
-  if (err) {
-    req.log.error({ err }, "Session save failed");
-    return res.status(500).json({
-      error: "Session save failed",
+    await new Promise<void>((resolve) => {
+      req.session.save((err) => {
+        if (err) {
+          req.log.error({ err }, "Session save failed");
+          res.status(500).json({ error: "Session save failed" });
+          resolve();
+          return;
+        }
+
+        const token = signToken({
+          userId: user.id,
+          name: user.name,
+          email: user.email,
+          tokenVersion: user.tokenVersion,
+        });
+
+        res.json({
+          user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            createdAt: user.createdAt,
+          },
+          token,
+          message: "Logged in successfully",
+        });
+        resolve();
+      });
     });
-  }
-
-  const token = signToken({
-    userId: user.id,
-    name: user.name,
-    email: user.email,
-    tokenVersion: user.tokenVersion,
-  });
-
-  res.json({
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      createdAt: user.createdAt,
-    },
-    token,
-    message: "Logged in successfully",
-  });
-});
   } catch (err) {
     req.log.error({ err }, "Error logging in user");
     res.status(500).json({ error: "Internal server error" });
@@ -160,18 +163,21 @@ router.get("/me", async (req, res) => {
   }
 });
 router.post("/logout", async (req, res) => {
-  req.session.destroy((err) => {
-    if (err) {
-      req.log.error({ err }, "Logout failed");
-      return res.status(500).json({
-        error: "Logout failed",
+  await new Promise<void>((resolve) => {
+    req.session.destroy((err) => {
+      if (err) {
+        req.log.error({ err }, "Logout failed");
+        res.status(500).json({ error: "Logout failed" });
+        resolve();
+        return;
+      }
+
+      res.clearCookie("connect.sid");
+
+      res.json({
+        message: "Logged out successfully",
       });
-    }
-
-    res.clearCookie("connect.sid");
-
-    res.json({
-      message: "Logged out successfully",
+      resolve();
     });
   });
 });

@@ -96,7 +96,7 @@ if (!Number.isInteger(sessionId) || sessionId <= 0) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const { data: session, isLoading } = useGetInterviewSession(sessionId, {
-    query: { enabled: !!sessionId },
+    query: { enabled: !!sessionId, queryKey: getGetInterviewSessionQueryKey(sessionId) },
   });
 
   const submitMutation = useSubmitAnswer();
@@ -331,7 +331,7 @@ if (!Number.isInteger(sessionId) || sessionId <= 0) {
                     </div>
 
                     {/* Sample answer section */}
-                    {q.sampleAnswer && (
+                    {q.aiFeedback && (
                       <div className="border-t border-border/50 pt-3 space-y-2">
                         <div className="flex items-center gap-1.5">
                           <Lightbulb className="h-3.5 w-3.5 text-amber-500 shrink-0" />
@@ -340,7 +340,7 @@ if (!Number.isInteger(sessionId) || sessionId <= 0) {
                           </span>
                         </div>
                         <p className="text-sm leading-relaxed text-muted-foreground italic bg-amber-500/5 border border-amber-500/20 rounded-lg px-3 py-2">
-                          {q.sampleAnswer}
+                          {q.aiFeedback}
                         </p>
                       </div>
                     )}

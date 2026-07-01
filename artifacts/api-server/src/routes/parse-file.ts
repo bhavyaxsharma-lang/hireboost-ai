@@ -116,14 +116,16 @@ worker.on("online", () => {
     });
 
   worker.on("error", (err) => {
-  console.error("PDF WORKER ERROR");
-  console.error(err);
-  console.error("MESSAGE:", err?.message);
-  console.error("STACK:", err?.stack);
+    const message = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : undefined;
+    console.error("PDF WORKER ERROR");
+    console.error(err);
+    console.error("MESSAGE:", message);
+    console.error("STACK:", stack);
 
-  clearTimeout(timer);
-  reject(err);
-});
+    clearTimeout(timer);
+    reject(err);
+  });
   });
 }
 
@@ -159,10 +161,12 @@ function wordParseInWorker(buf: Buffer): Promise<{ text: string }> {
     });
 
  worker.on("error", (err) => {
+  const message = err instanceof Error ? err.message : String(err);
+  const stack = err instanceof Error ? err.stack : undefined;
   console.error(" WORD WORKER ERROR");
   console.error(err);
-  console.error("MESSAGE:", err?.message);
-  console.error("STACK:", err?.stack);
+  console.error("MESSAGE:", message);
+  console.error("STACK:", stack);
 
   clearTimeout(timer);
   reject(err);

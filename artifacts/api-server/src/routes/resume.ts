@@ -1,5 +1,5 @@
 // Resume analysis routes
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { requireAuth } from "../middleware/requireAuth";
 import { db, resumeAnalyses, payments, rewriteLogs } from "@workspace/db";
@@ -16,6 +16,7 @@ import { UploadResumeBody, AnalyzeResumeBody, GetResumeAnalysisParams } from "@w
 const router = Router();
 
 const isMockMode = process.env.MOCK_RESPONSES === "true";
+const isProduction = process.env.NODE_ENV === "production";
 
 const FREE_REWRITE_LIMIT = 1;
 const RewriteResumeBody = z.object({
@@ -60,7 +61,7 @@ async function getUnusedPayment(userId: number) {
 
   return payment ?? null;
 }
-router.get("/rewrite-status", requireAuth, async (req, res) => {
+router.get("/rewrite-status", requireAuth, async (req: Request, res: Response): Promise<Response | void> => {
   res.setHeader(
   "Cache-Control",
   "no-store, no-cache, must-revalidate, proxy-revalidate"
@@ -102,7 +103,7 @@ if (!userId) {
 
 
 // GET /resume/daily-usage — returns how many analyses the user has done today
-router.get("/daily-usage", requireAuth, async (req, res) => {
+router.get("/daily-usage", requireAuth, async (req: Request, res: Response): Promise<Response | void> => {
   const userId = req.userId;
 
   if (!userId) {
@@ -134,7 +135,7 @@ router.get("/daily-usage", requireAuth, async (req, res) => {
 });
 
 // POST /resume/upload — extract and return resume text + word count
-router.post("/upload", async (req, res) => {
+router.post("/upload", async (req: Request, res: Response): Promise<Response | void> => {
   const parseResult = UploadResumeBody.safeParse(req.body);
   if (!parseResult.success) {
     res.status(400).json({ error: "Invalid request body" });
@@ -152,7 +153,7 @@ router.post("/upload", async (req, res) => {
 
 // POST /resume/analyze — AI analysis (requires authentication)
 
-router.post("/analyze", requireAuth, async (req, res) => {
+router.post("/analyze", requireAuth, async (req: Request, res: Response): Promise<Response | void> => {
   const userId = req.userId;
 
 if (!userId) {
@@ -173,6 +174,12 @@ const safeResumeText = resumeText.slice(0, 15000);
 const safeJobDescription = jobDescription?.slice(0, 10000);
 
   if (isMockMode) {
+    if (isProduction) {
+      req.log.error("Mock mode is disabled in production for resume analysis");
+      res.status(503).json({ error: "Resume analysis is temporarily unavailable" });
+      return;
+    }
+
     res.json({
       id: 0,
       userId,
@@ -281,7 +288,7 @@ const content = rawContent
 });
 
 // GET /resume/history — list past analyses
-router.get("/history/", requireAuth, async (req, res) => {
+router.get("/history/", requireAuth, async (req: Request, res: Response): Promise<Response | void> => {
   const userId = req.userId;
 
 if (!userId) {
@@ -311,7 +318,7 @@ if (!userId) {
 });
 
 // GET /resume/history/:id — get specific analysis
-router.get("/history/:id", requireAuth, async (req, res) => {
+router.get("/history/:id", requireAuth, async (req: Request, res: Response): Promise<Response | void> => {
   const userId = req.userId;
 
 if (!userId) {
@@ -353,7 +360,7 @@ if (!userId) {
 });
 
 // POST /resume/rewrite — AI rewrite (1 free lifetime, then ₹199 per rewrite)
-router.post("/rewrite", requireAuth, async (req, res) => {
+router.post("/rewrite", requireAuth, async (req: Request, res: Response): Promise<Response | void> => {
   const userId = req.userId;
 
 if (!userId) {
@@ -411,7 +418,7 @@ const {
       | { type: "free_claimed"; logId: number }
       | { type: "limit_reached" };
 
-    const freeResult = await db.transaction(async (tx): Promise<FreeClaimResult> => {
+    const freeResult = await db.transaction(async (tx: any): Promise<FreeClaimResult> => {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(${userId}::bigint)`);
 
       const [{ c }] = await tx

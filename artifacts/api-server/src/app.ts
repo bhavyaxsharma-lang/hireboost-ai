@@ -129,8 +129,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   if (!STATE_CHANGING_METHODS.has(req.method)) { next(); return; }
   const origin = req.headers.origin;
   if (origin !== undefined && !allowedOriginsSet.has(origin)) {
-    console.log("BLOCKED ORIGIN:", origin);
-    console.log("ALLOWLIST:", [...allowedOriginsSet]);
+    logger.warn({ origin, allowlist: [...allowedOriginsSet] }, "Rejected request from disallowed origin");
 
     res.status(403).json({
       error: "Forbidden: invalid request origin",

@@ -27,7 +27,7 @@ const router = Router();
 const TERMINAL_ADVERSE_STATUSES = ["refunded", "disputed"] as const;
 
 // POST /webhooks/razorpay — receive Razorpay event notifications
-router.post("/razorpay", async (req: Request, res: Response) => {
+router.post("/razorpay", async (req: Request, res: Response): Promise<Response | void> => {
   const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
   if (!webhookSecret) {
     logger.error("RAZORPAY_WEBHOOK_SECRET is not configured");
@@ -109,7 +109,7 @@ type RazorpayDisputeEntity = {
   payment_id?: string;
 };
 
-async function handleEvent(event: { event: string; payload?: Record<string, unknown> }) {
+async function handleEvent(event: { event: string; payload?: Record<string, unknown> }): Promise<void> {
   const eventType = event.event;
   logger.info({ eventType }, "Processing Razorpay webhook event");
 
@@ -144,7 +144,7 @@ async function handleEvent(event: { event: string; payload?: Record<string, unkn
   }
 }
 
-async function markPaymentByOrderId(razorpayOrderId: string, newStatus: string) {
+async function markPaymentByOrderId(razorpayOrderId: string, newStatus: string): Promise<void> {
   // Transition guard: only update if the current status is not already a terminal
   // adverse state. This ensures idempotent behaviour on duplicate deliveries and
   // prevents a less severe event from overwriting a more severe one.
@@ -167,7 +167,7 @@ async function markPaymentByOrderId(razorpayOrderId: string, newStatus: string) 
   );
 }
 
-async function markPaymentByPaymentId(razorpayPaymentId: string, newStatus: string) {
+async function markPaymentByPaymentId(razorpayPaymentId: string, newStatus: string): Promise<void> {
   const result = await db
     .update(payments)
     .set({ status: newStatus })
