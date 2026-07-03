@@ -30,7 +30,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const { theme, setTheme } = useTheme();
 
 const isAndroidApp =
-  new URLSearchParams(window.location.search).get("app") === "android";
+  navigator.userAgent.includes("HireBoostAndroidApp");
   console.log(window.location.href);
 console.log(window.location.search);
 console.log(isAndroidApp);
