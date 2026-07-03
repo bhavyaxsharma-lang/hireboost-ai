@@ -29,7 +29,11 @@ export function Layout({ children }: { children: ReactNode }) {
   const logout = useLogoutUser();
   const { theme, setTheme } = useTheme();
 
-const isAndroidApp = navigator.userAgent.includes("HireBoostAndroidApp");
+const isAndroidApp =
+  new URLSearchParams(window.location.search).get("app") === "android";
+  console.log(window.location.href);
+console.log(window.location.search);
+console.log(isAndroidApp);
 
 const handleLogout = () => {
   localStorage.removeItem("authToken");
