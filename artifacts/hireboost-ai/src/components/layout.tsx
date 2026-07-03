@@ -29,6 +29,9 @@ export function Layout({ children }: { children: ReactNode }) {
   const logout = useLogoutUser();
   const { theme, setTheme } = useTheme();
 
+const isAndroidApp = new URLSearchParams(window.location.search)
+  .get("app") === "android";
+
 const handleLogout = () => {
   localStorage.removeItem("authToken");
   localStorage.removeItem("userName");
@@ -47,10 +50,18 @@ const handleLogout = () => {
         <div className="container flex h-14 max-w-screen-2xl items-center px-4">
           <div className="flex flex-1 items-center justify-between gap-4">
             {/* Brand */}
-            <Link href="/" className="flex items-center space-x-1.5 shrink-0">
-              <span className="font-extrabold text-xl tracking-tight text-primary">HireBoost</span>
-              <span className="font-extrabold text-xl tracking-tight text-foreground">AI</span>
-            </Link>
+     {!isAndroidApp ? (
+  <Link href="/" className="flex items-center space-x-1.5 shrink-0">
+    <span className="font-extrabold text-xl tracking-tight text-primary">
+      HireBoost
+    </span>
+    <span className="font-extrabold text-xl tracking-tight text-foreground">
+      AI
+    </span>
+  </Link>
+) : (
+  <div className="w-24" />
+)}
 
             <div className="flex items-center gap-2 md:gap-3">
               {/* Theme toggle */}
