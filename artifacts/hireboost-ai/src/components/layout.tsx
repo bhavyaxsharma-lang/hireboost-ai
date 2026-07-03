@@ -31,8 +31,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
 const isAndroidApp =
   navigator.userAgent.includes("HireBoostAndroidApp");
-  console.log(window.location.href);
-console.log(window.location.search);
+  console.log(navigator.userAgent);
 console.log(isAndroidApp);
 
 const handleLogout = () => {
