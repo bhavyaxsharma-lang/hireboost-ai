@@ -1,5 +1,6 @@
 import { Link } from "wouter";
 import { useGetDashboardStats, useGetRecentActivity } from "@workspace/api-client-react";
+import { getLocalStorageItem } from "@/lib/storage";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -58,10 +59,7 @@ export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useGetDashboardStats();
   const { data: activity, isLoading: activityLoading } = useGetRecentActivity();
 
-const storedName =
-  typeof window !== "undefined"
-    ? localStorage.getItem("userName")
-    : "";
+const storedName = typeof window !== "undefined" ? getLocalStorageItem("userName") : "";
 
 const firstName =
   user?.name?.split(" ")[0] ||

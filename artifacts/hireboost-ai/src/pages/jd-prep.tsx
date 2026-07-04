@@ -197,9 +197,9 @@ export default function JDPrep() {
     setIsLoading(true);
     setResult(null);
     try {
- const token = localStorage.getItem("authToken");
+      const token = getLocalStorageItem("authToken");
 
-const res = await fetch("/api/interview/jd-prep", {
+      const res = await fetch("/api/interview/jd-prep", {
   method: "POST",
   credentials: "include",
   headers: {

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "wouter";
 import { useAnalyzeResume } from "@workspace/api-client-react";
+import { getLocalStorageItem } from "@/lib/storage";
+import { copyTextToClipboard } from "@/lib/clipboard";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -40,7 +42,11 @@ type AnalysisResult = {
    Helpers
 ───────────────────────────────────────────────────────── */
 function getApiBase() {
-  return (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "") + "/api";
+  const apiBase =
+    import.meta.env.VITE_API_BASE_URL?.replace(/\/+$/, "") ||
+    import.meta.env.BASE_URL?.replace(/\/+$/, "") ||
+    "";
+  return `${apiBase}/api`.replace(/\/api\/$/, "/api");
 }
 
 /* ─────────────────────────────────────────────────────────
@@ -753,7 +759,7 @@ function AutoFixButton({
 
 const fetchStatus = async () => {
   try {
-    const token = localStorage.getItem("authToken");
+    const token = getLocalStorageItem("authToken");
 
     const statusRes = await fetch(
       `${getApiBase()}/resume/rewrite-status?t=${Date.now()}`,
@@ -795,7 +801,7 @@ const doRewrite = async () => {
   setIsRewriting(true);
 
   try {
-    const token = localStorage.getItem("authToken");
+    const token = getLocalStorageItem("authToken");
 
     const res = await fetch(
       `${getApiBase()}/resume/rewrite`,
@@ -879,9 +885,9 @@ toast({
         throw new Error("Payment SDK failed to load. Please check your internet connection and try again.");
       }
 
-const token = localStorage.getItem("authToken");
+      const token = getLocalStorageItem("authToken");
 
-const orderRes = await fetch(
+      const orderRes = await fetch(
   `${getApiBase()}/payment/create-order`,
   {
     method: "POST",
@@ -916,7 +922,7 @@ const orderRes = await fetch(
           description: "Resume Auto-Fix Credit",
           order_id: orderId,
 handler: async (response: { razorpay_payment_id?: string; razorpay_order_id?: string; razorpay_signature?: string }) => {
-  const token = localStorage.getItem("authToken");
+  const token = getLocalStorageItem("authToken");
 
   const verifyRes = await fetch(
     `${getApiBase()}/payment/verify`,
@@ -980,7 +986,7 @@ const handleClick = async () => {
   let currentStatus = rewriteStatus;
 
   try {
-    const token = localStorage.getItem("authToken");
+    const token = getLocalStorageItem("authToken");
 
     const statusRes = await fetch(
       `${getApiBase()}/resume/rewrite-status?t=${Date.now()}`,

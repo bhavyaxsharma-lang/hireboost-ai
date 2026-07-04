@@ -4,6 +4,11 @@ import { useAuth } from "./auth-provider";
 import { useLogoutUser } from "@workspace/api-client-react";
 import { Button } from "./ui/button";
 import {
+  getLocalStorageItem,
+  removeLocalStorageItem,
+} from "@/lib/storage";
+import { safeWindowLocationHref } from "@/lib/dom";
+import {
   LayoutDashboard, FileText, Video, History, LogOut,
   Menu, TrendingUp, ClipboardList,
 } from "lucide-react";
@@ -21,10 +26,10 @@ const navItems = [
 ];
 
 export function Layout({ children }: { children: ReactNode }) {
-  const { isAuthenticated, user } = useAuth();
+    const { isAuthenticated, user } = useAuth();
   const loggedIn =
-  isAuthenticated ||
-  !!localStorage.getItem("authToken");
+    isAuthenticated ||
+    !!getLocalStorageItem("authToken");
   const [location, setLocation] = useLocation();
   const logout = useLogoutUser();
   const { theme, setTheme } = useTheme();
@@ -33,13 +38,13 @@ const isAndroidApp =
     navigator.userAgent.includes("HireBoostAndroidApp");
 
 const handleLogout = () => {
-  localStorage.removeItem("authToken");
-  localStorage.removeItem("userName");
-  localStorage.removeItem("userEmail");
+  removeLocalStorageItem("authToken");
+  removeLocalStorageItem("userName");
+  removeLocalStorageItem("userEmail");
 
   logout.mutate(undefined, {
     onSettled: () => {
-      window.location.href = "/";
+      safeWindowLocationHref("/");
     },
   });
 };
@@ -107,12 +112,12 @@ const handleLogout = () => {
                 <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
   {(
     user?.name ||
-    localStorage.getItem("userName") ||
+    getLocalStorageItem("userName") ||
     "B"
   )[0].toUpperCase()}
 </div>
                         <span className="text-sm font-medium max-w-[80px] truncate">
-  {user?.name || localStorage.getItem("userName")}
+  {user?.name || getLocalStorageItem("userName")}
 </span>
                       </div>
                       <Button variant="ghost" size="icon" onClick={handleLogout} title="Log out" className="h-8 w-8">
@@ -136,18 +141,18 @@ const handleLogout = () => {
   <div className="h-10 w-10 rounded-full bg-primary/20 flex items-center justify-center text-sm font-bold text-primary shrink-0">
     {(
       user?.name ||
-      localStorage.getItem("userName") ||
+      getLocalStorageItem("userName") ||
       "B"
     )[0].toUpperCase()}
   </div>
 
   <div className="flex flex-col min-w-0">
     <span className="text-sm font-bold truncate">
-      {user?.name || localStorage.getItem("userName")}
+      {user?.name || getLocalStorageItem("userName")}
     </span>
 
     <span className="text-xs text-muted-foreground truncate">
-      {user?.email || localStorage.getItem("userEmail")}
+      {user?.email || getLocalStorageItem("userEmail")}
     </span>
   </div>
 </div>

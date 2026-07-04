@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { copyTextToClipboard } from "@/lib/clipboard";
 import {
   Loader2,
   TrendingUp,
@@ -105,7 +106,8 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 
  const handleCopy = async () => {
   try {
-    await navigator.clipboard.writeText(text);
+    const ok = await copyTextToClipboard(text);
+    if (!ok) throw new Error("clipboard unavailable");
 
     setCopied(true);
 
@@ -178,7 +180,7 @@ export default function SalaryNegotiation() {
         ...(form.skills ? { skills: form.skills.trim() } : {}),
       };
 
-    const token = localStorage.getItem("authToken");
+    const token = getLocalStorageItem("authToken");
 
 const res = await fetch(`${BASE}/api/salary/generate`, {
   method: "POST",

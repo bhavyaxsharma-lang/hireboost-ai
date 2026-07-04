@@ -1,4 +1,5 @@
-import React, { createContext, useContext } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { getLocalStorageItem } from "@/lib/storage";
 
 type AuthState = {
   user: {
@@ -20,13 +21,13 @@ export function AuthProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const [token, setToken] = React.useState(
-    localStorage.getItem("authToken")
-  );
+  const [token, setToken] = useState<string | null>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
+    setToken(getLocalStorageItem("authToken"));
+
     const syncAuth = () => {
-      setToken(localStorage.getItem("authToken"));
+      setToken(getLocalStorageItem("authToken"));
     };
 
     window.addEventListener("storage", syncAuth);
@@ -36,13 +37,16 @@ export function AuthProvider({
     };
   }, []);
 
+  const storedName = token ? getLocalStorageItem("userName") : null;
+  const storedEmail = token ? getLocalStorageItem("userEmail") : null;
+
   return (
     <AuthContext.Provider
       value={{
         user: token
           ? {
-              name: localStorage.getItem("userName") || undefined,
-              email: localStorage.getItem("userEmail") || undefined,
+              name: storedName || undefined,
+              email: storedEmail || undefined,
             }
           : null,
         isLoading: false,
@@ -61,10 +65,12 @@ export function ProtectedRoute({
 }: {
   children: React.ReactNode;
 }) {
-  const token = localStorage.getItem("authToken");
+  const token = getLocalStorageItem("authToken");
 
   if (!token) {
-    window.location.href = "/auth";
+    if (typeof window !== "undefined") {
+      window.location.href = "/auth";
+    }
     return null;
   }
 

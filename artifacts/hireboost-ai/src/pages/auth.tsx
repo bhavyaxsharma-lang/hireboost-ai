@@ -2,6 +2,10 @@ import { useState } from "react";
 import { useLocation, Link } from "wouter";
 import { useLoginUser, useRegisterUser } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
+import {
+  removeLocalStorageItem,
+  setLocalStorageItem,
+} from "@/lib/storage";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
@@ -46,18 +50,16 @@ export default function Auth() {
           }
 
           if (data?.token) {
-            localStorage.removeItem("authToken");
-            localStorage.removeItem("userName");
-            localStorage.removeItem("userEmail");
+            removeLocalStorageItem("authToken");
+            removeLocalStorageItem("userName");
+            removeLocalStorageItem("userEmail");
 
-            localStorage.setItem("authToken", data.token);
-
-            localStorage.setItem(
+            setLocalStorageItem("authToken", data.token);
+            setLocalStorageItem(
               "userName",
               data?.user?.name || data?.name || ""
             );
-
-            localStorage.setItem(
+            setLocalStorageItem(
               "userEmail",
               data?.user?.email || email.trim()
             );
