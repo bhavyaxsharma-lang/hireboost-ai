@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { getLocalStorageItem } from "@/lib/storage";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Loader2, Sparkles, ChevronDown, ChevronUp,
