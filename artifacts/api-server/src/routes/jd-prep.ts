@@ -140,8 +140,7 @@ const content = rawContent
 
     res.json(result);
   } catch (err: any) {
-    console.error("JD PREP ERROR");
-    console.error(err);
+    req.log.error({ err }, "Error generating JD prep response");
 
     res.status(500).json({
       error: String(err?.message || err)

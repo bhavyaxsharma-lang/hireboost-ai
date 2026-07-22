@@ -23,31 +23,6 @@ const WORD_WORKER_PATH = new URL(
 
 
 
-console.log("=================================");
-console.log("PARSE FILE STARTUP DIAGNOSTICS");
-console.log("CURRENT_DIR =", CURRENT_DIR);
-
-console.log(
-  "PDF PATH =",
-  fileURLToPath(PDF_WORKER_PATH)
-);
-
-console.log(
-  "PDF EXISTS =",
-  fs.existsSync(fileURLToPath(PDF_WORKER_PATH))
-);
-
-console.log(
-  "WORD PATH =",
-  fileURLToPath(WORD_WORKER_PATH)
-);
-
-console.log(
-  "WORD EXISTS =",
-  fs.existsSync(fileURLToPath(WORD_WORKER_PATH))
-);
-
-console.log("=================================");
 
 
 
@@ -89,16 +64,10 @@ function pdfParseInWorker(
     // (zero-copy).  After transfer, `buf` must not be accessed here.
     const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
 
-    console.log("Starting PDF worker:", PDF_WORKER_PATH);
-
-const worker = new Worker(PDF_WORKER_PATH, {
-  workerData: { buffer: ab },
-  transferList: [ab as ArrayBuffer],
-});
-
-worker.on("online", () => {
-  console.log("PDF worker online");
-});
+    const worker = new Worker(PDF_WORKER_PATH, {
+      workerData: { buffer: ab },
+      transferList: [ab as ArrayBuffer],
+    });
 
     const timer = setTimeout(() => {
       worker.terminate();
@@ -116,13 +85,6 @@ worker.on("online", () => {
     });
 
   worker.on("error", (err) => {
-    const message = err instanceof Error ? err.message : String(err);
-    const stack = err instanceof Error ? err.stack : undefined;
-    console.error("PDF WORKER ERROR");
-    console.error(err);
-    console.error("MESSAGE:", message);
-    console.error("STACK:", stack);
-
     clearTimeout(timer);
     reject(err);
   });
@@ -160,17 +122,10 @@ function wordParseInWorker(buf: Buffer): Promise<{ text: string }> {
       }
     });
 
- worker.on("error", (err) => {
-  const message = err instanceof Error ? err.message : String(err);
-  const stack = err instanceof Error ? err.stack : undefined;
-  console.error(" WORD WORKER ERROR");
-  console.error(err);
-  console.error("MESSAGE:", message);
-  console.error("STACK:", stack);
-
-  clearTimeout(timer);
-  reject(err);
-});
+    worker.on("error", (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
   });
 }
 
@@ -447,11 +402,6 @@ router.post("/parse-file", (req, res, next) => {
       fileType: detectedType,
     });
 } catch (err: any) {
-  console.error("========== PARSE FILE ERROR ==========");
-  console.error(err);
-  console.error("MESSAGE:", err?.message);
-  console.error("STACK:", err?.stack);
-
   req.log.error({ err }, "File parsing error");
 
   res.status(500).json({

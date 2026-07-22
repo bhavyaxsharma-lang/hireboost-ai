@@ -286,6 +286,7 @@ app.use("/api/auth/login", authLimiter);
 app.use("/api/auth/register", authLimiter);
 app.use("/api/auth/send-otp", otpLimiter);
 app.use("/api/auth/verify-otp-reset", passwordResetLimiter);
+app.use("/api/auth/verify-signup-otp", passwordResetLimiter);
 // Dedicated limiter for CPU-intensive file parsing (applied before the route handler).
 app.post("/api/resume/parse-file", parseFileLimiter);
 app.use("/api/resume/analyze", aiLimiter);

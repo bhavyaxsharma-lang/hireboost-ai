@@ -4,7 +4,8 @@ import crypto from "crypto";
 import { db, pool } from "@workspace/db";
 import { users, passwordResetOtps } from "@workspace/db";
 import { eq, and,sql } from "drizzle-orm";
-import { sendOtpEmail } from "../lib/email";
+import { sendPasswordResetEmail, sendSignupVerificationEmail } from "../lib/email";
+import { signToken } from "../lib/jwt";
 
 const router = Router();
 
@@ -42,7 +43,7 @@ function checkEmailRateLimit(email: string): boolean {
 // POST /auth/send-otp
 // Accepts { email } — generates a 6-digit OTP, stores hashed copy, sends via Resend.
 router.post("/send-otp", async (req: Request, res: Response): Promise<Response | void> => {
-  const { email } = req.body as { email?: string };
+  const { email, purpose } = req.body as { email?: string; purpose?: "password-reset" | "signup" };
 
   if (!email || typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     res.status(400).json({ error: "A valid email address is required." });
@@ -61,12 +62,54 @@ router.post("/send-otp", async (req: Request, res: Response): Promise<Response |
   }
 
   try {
-const [user] = await db
-  .select({ id: users.id, email: users.email })
-  .from(users)
-  .where(sql`LOWER(${users.email}) = ${normalizedEmail}`)
-  .limit(1);
+    const [user] = await db
+      .select({ id: users.id, email: users.email })
+      .from(users)
+      .where(sql`LOWER(${users.email}) = ${normalizedEmail}`)
+      .limit(1);
 
+    if (purpose === "signup") {
+      if (user) {
+        res.status(409).json({ error: "An account with this email already exists." });
+        return;
+      }
+
+      const otpNumber = crypto.randomInt(100000, 1000000);
+      const otp = String(otpNumber);
+      const otpHash = await bcrypt.hash(otp, 10);
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+      await db.transaction(async (tx: any) => {
+        await tx
+          .delete(passwordResetOtps)
+          .where(and(eq(passwordResetOtps.email, normalizedEmail), eq(passwordResetOtps.used, false)));
+
+        await tx.insert(passwordResetOtps).values({
+          email: normalizedEmail,
+          otpHash,
+          expiresAt,
+          used: false,
+          failedAttempts: 0,
+        });
+      });
+
+      try {
+        await sendSignupVerificationEmail({
+          to: normalizedEmail,
+          otp,
+        });
+
+        return res.json({
+          message: "A verification code has been sent to your email.",
+        });
+      } catch (err: any) {
+        req.log.error({ err }, "Error sending signup verification email");
+
+        return res.status(500).json({
+          error: "Email failed",
+        });
+      }
+    }
 
     if (!user) {
       // Dummy hash keeps response time comparable to the registered-email path,
@@ -98,7 +141,7 @@ const [user] = await db
 
     // Respond before sending email so SMTP latency cannot reveal account existence.
 try {
-  await sendOtpEmail({
+  await sendPasswordResetEmail({
     to: normalizedEmail,
     otp,
   });
@@ -107,13 +150,7 @@ try {
     message: "If that email is registered, an OTP has been sent.",
   });
 } catch (err: any) {
-  console.error("========== EMAIL ERROR ==========");
-  console.error("Message:", err?.message);
-  console.error("Code:", err?.code);
-  console.error("Response:", err?.response);
-  console.error("Response Code:", err?.responseCode);
-  console.error(err);
-  console.error("=================================");
+  req.log.error({ err }, "Error sending password reset email");
 
   return res.status(500).json({
     error: "Email failed",
@@ -244,6 +281,163 @@ router.post("/verify-otp-reset", async (req: Request, res: Response): Promise<Re
     res.json({ message: "Password updated successfully. You can now log in." });
   } catch (err) {
     req.log.error({ err }, "Error verifying OTP reset");
+    res.status(500).json({ error: "Internal server error. Please try again." });
+  }
+});
+
+router.post("/verify-signup-otp", async (req: Request, res: Response): Promise<Response | void> => {
+  const { email, otp, name, password } = req.body as {
+    email?: string;
+    otp?: string;
+    name?: string;
+    password?: string;
+  };
+
+  if (!email || !otp || !name || !password || typeof email !== "string" || typeof otp !== "string" || typeof name !== "string" || typeof password !== "string") {
+    res.status(400).json({ error: "Email, OTP, name, and password are all required." });
+    return;
+  }
+
+  if (name.trim().length < 2) {
+    res.status(400).json({ error: "Please enter your full name." });
+    return;
+  }
+
+  if (password.length < 8) {
+    res.status(400).json({ error: "Password must be at least 8 characters." });
+    return;
+  }
+
+  const normalizedEmail = email.toLowerCase().trim();
+
+  try {
+    const now = new Date();
+
+    const outcome = await db.transaction(async (tx: any) => {
+      const result = await tx.execute(sql`
+        SELECT id,
+               otp_hash        AS "otpHash",
+               failed_attempts AS "failedAttempts",
+               used,
+               expires_at      AS "expiresAt"
+        FROM   password_reset_otps
+        WHERE  email      = ${normalizedEmail}
+          AND  used       = false
+          AND  expires_at > ${now}
+        ORDER BY created_at ASC
+        LIMIT  1
+        FOR UPDATE
+      `);
+
+      const otpRecord = result.rows[0] as {
+        id: number;
+        otpHash: string;
+        failedAttempts: number;
+        used: boolean;
+        expiresAt: Date;
+      } | undefined;
+
+      if (!otpRecord) {
+        await bcrypt.compare(otp, DUMMY_HASH);
+        return { status: "no_record" } as const;
+      }
+
+      if (otpRecord.failedAttempts >= MAX_FAILED_ATTEMPTS) {
+        await tx.execute(sql`UPDATE password_reset_otps SET used = true WHERE id = ${otpRecord.id}`);
+        await bcrypt.compare(otp, DUMMY_HASH);
+        return { status: "locked" } as const;
+      }
+
+      const isValid = await bcrypt.compare(otp, otpRecord.otpHash);
+
+      if (!isValid) {
+        const newFailedAttempts = otpRecord.failedAttempts + 1;
+        const shouldInvalidate = newFailedAttempts >= MAX_FAILED_ATTEMPTS;
+        await tx.execute(sql`
+          UPDATE password_reset_otps
+          SET    failed_attempts = ${newFailedAttempts}
+                 ${shouldInvalidate ? sql`, used = true` : sql``}
+          WHERE  id = ${otpRecord.id}
+        `);
+        return { status: "wrong_otp" } as const;
+      }
+
+      const existingUserResult = await tx.execute(sql`
+        SELECT id
+        FROM users
+        WHERE LOWER(email) = ${normalizedEmail}
+        LIMIT 1
+      `);
+      const existingUserId = (existingUserResult.rows[0] as { id: number } | undefined)?.id;
+
+      if (existingUserId) {
+        return { status: "email_exists" } as const;
+      }
+
+      const passwordHash = await bcrypt.hash(password, 10);
+      await tx.execute(sql`
+        INSERT INTO users (name, email, password_hash, token_version)
+        VALUES (${name.trim()}, ${normalizedEmail}, ${passwordHash}, 0)
+      `);
+      await tx.execute(sql`UPDATE password_reset_otps SET used = true WHERE id = ${otpRecord.id}`);
+
+      const userResult = await tx.execute(sql`
+        SELECT id
+        FROM users
+        WHERE LOWER(email) = ${normalizedEmail}
+        LIMIT 1
+      `);
+      const userId = (userResult.rows[0] as { id: number } | undefined)?.id;
+
+      return { status: "valid", userId } as const;
+    });
+
+    if (outcome.status !== "valid") {
+      if (outcome.status === "email_exists") {
+        res.status(409).json({ error: "An account with this email already exists." });
+        return;
+      }
+      res.status(400).json(INVALID_OTP_RESPONSE);
+      return;
+    }
+
+    const userId = outcome.userId;
+    if (!userId) {
+      res.status(500).json({ error: "Failed to create account." });
+      return;
+    }
+
+    req.session.userId = userId;
+    await new Promise<void>((resolve) => {
+      req.session.save((err) => {
+        if (err) {
+          req.log.error({ err }, "Session save failed");
+          res.status(500).json({ error: "Session save failed" });
+          resolve();
+          return;
+        }
+
+        const token = signToken({
+          userId,
+          name: name.trim(),
+          email: normalizedEmail,
+          tokenVersion: 0,
+        });
+
+        res.json({
+          user: {
+            id: userId,
+            name: name.trim(),
+            email: normalizedEmail,
+          },
+          token,
+          message: "Account created successfully.",
+        });
+        resolve();
+      });
+    });
+  } catch (err) {
+    req.log.error({ err }, "Error verifying signup OTP");
     res.status(500).json({ error: "Internal server error. Please try again." });
   }
 });

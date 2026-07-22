@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useLocation, Link } from "wouter";
-import { useLoginUser, useRegisterUser } from "@workspace/api-client-react";
+import { useLoginUser } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import {
   removeLocalStorageItem,
   setLocalStorageItem,
+  setSessionStorageItem,
 } from "@/lib/storage";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,118 +28,152 @@ export default function Auth() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isPreparingSignup, setIsPreparingSignup] = useState(false);
 
   const loginMutation = useLoginUser();
-  const registerMutation = useRegisterUser();
-  const isLoading = loginMutation.isPending || registerMutation.isPending;
+  const isLoading = loginMutation.isPending || isPreparingSignup;
 
- const handleSubmit = (e: React.FormEvent) => {
-  e.preventDefault();
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-  if (isLogin) {
-    loginMutation.mutate(
-      {
-        data: {
+    if (isLogin) {
+      loginMutation.mutate(
+        {
+          data: {
+            email: email.trim(),
+            password,
+          },
+        },
+        {
+          onSuccess: (data: any) => {
+            if (import.meta.env.DEV) {
+              console.log("LOGIN RESPONSE:", data);
+            }
+
+            if (data?.token) {
+              removeLocalStorageItem("authToken");
+              removeLocalStorageItem("userName");
+              removeLocalStorageItem("userEmail");
+
+              setLocalStorageItem("authToken", data.token);
+              setLocalStorageItem(
+                "userName",
+                data?.user?.name || data?.name || ""
+              );
+              setLocalStorageItem(
+                "userEmail",
+                data?.user?.email || email.trim()
+              );
+            }
+
+            toast({
+              title: "Welcome back!",
+            });
+
+            setLocation("/dashboard");
+          },
+
+          onError: (error: any) => {
+            toast({
+              title: "Login Failed",
+              description:
+                error?.error || "Please check your credentials.",
+              variant: "destructive",
+            });
+          },
+        }
+      );
+
+      return;
+    }
+
+    if (name.trim().length < 2) {
+      toast({
+        title: "Invalid Name",
+        description: "Please enter your full name.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      toast({
+        title: "Invalid Email",
+        description: "Please enter a valid email address.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (password.length < 8) {
+      toast({
+        title: "Weak Password",
+        description: "Password must be at least 8 characters long.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      toast({
+        title: "Passwords don't match",
+        description: "Please confirm your password exactly.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsPreparingSignup(true);
+    try {
+      const res = await fetch("/api/auth/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           email: email.trim(),
-          password,
-        },
-      },
-      {
-        onSuccess: (data: any) => {
-          if (import.meta.env.DEV) {
-            console.log("LOGIN RESPONSE:", data);
-          }
+          purpose: "signup",
+        }),
+      });
+      const data = await res.json() as { message?: string; error?: string };
 
-          if (data?.token) {
-            removeLocalStorageItem("authToken");
-            removeLocalStorageItem("userName");
-            removeLocalStorageItem("userEmail");
-
-            setLocalStorageItem("authToken", data.token);
-            setLocalStorageItem(
-              "userName",
-              data?.user?.name || data?.name || ""
-            );
-            setLocalStorageItem(
-              "userEmail",
-              data?.user?.email || email.trim()
-            );
-          }
-
-          toast({
-            title: "Welcome back!",
-          });
-
-          setLocation("/dashboard");
-        },
-
-        onError: (error: any) => {
-          toast({
-            title: "Login Failed",
-            description:
-              error?.error || "Please check your credentials.",
-            variant: "destructive",
-          });
-        },
-      }
-    );
-
-    return;
-  }
-
-  // Registration validation
-  if (name.trim().length < 2) {
-    toast({
-      title: "Invalid Name",
-      description: "Please enter your full name.",
-      variant: "destructive",
-    });
-    return;
-  }
-
-  if (password.length < 8) {
-    toast({
-      title: "Weak Password",
-      description: "Password must be at least 8 characters long.",
-      variant: "destructive",
-    });
-    return;
-  }
-
-  registerMutation.mutate(
-    {
-      data: {
-        name: name.trim(),
-        email: email.trim(),
-        password,
-      },
-    },
-    {
-      onSuccess: (data: any) => {
+      if (!res.ok) {
         toast({
-          title: "Check your inbox",
-          description: data?.message || "Registration successful.",
-        });
-
-        setIsLogin(true);
-
-        // Optional: clear form
-        setName("");
-        setEmail("");
-        setPassword("");
-      },
-
-      onError: (error: any) => {
-        toast({
-          title: "Registration Failed",
-          description:
-            error?.error || "An error occurred.",
+          title: "Unable to start signup",
+          description: data.error || "Please try again.",
           variant: "destructive",
         });
-      },
+        return;
+      }
+
+      setSessionStorageItem(
+        "pendingSignup",
+        JSON.stringify({
+          name: name.trim(),
+          email: email.trim(),
+          password,
+        })
+      );
+
+      toast({
+        title: "Verify your email to continue",
+        description: "We've sent a 6-digit verification code to your email address. Enter the OTP to activate your HireBoost AI account.",
+      });
+
+      setName("");
+      setEmail("");
+      setPassword("");
+      setConfirmPassword("");
+      setLocation("/verify-email");
+    } catch {
+      toast({
+        title: "Network error",
+        description: "Could not connect. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPreparingSignup(false);
     }
-  );
-};
+  };
 
   return (
     <div className="min-h-[calc(100vh-3.5rem)] flex">
@@ -255,6 +290,23 @@ export default function Auth() {
                 autoComplete={isLogin ? "current-password" : "new-password"}
               />
             </div>
+
+            {!isLogin && (
+              <div className="space-y-1.5">
+                <Label htmlFor="confirm-password">Confirm Password</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  placeholder="••••••••"
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  disabled={isLoading}
+                  className="h-11"
+                  autoComplete="new-password"
+                />
+              </div>
+            )}
 
             <Button
               type="submit"

@@ -11,6 +11,7 @@ import { Layout } from "@/components/layout";
 import Home from "@/pages/home";
 import Auth from "@/pages/auth";
 import ForgotPassword from "@/pages/forgot-password";
+import VerifyEmail from "@/pages/verify-email";
 import ResetPassword from "@/pages/reset-password";
 import JDPrep from "@/pages/jd-prep";
 import Dashboard from "@/pages/dashboard";
@@ -40,6 +41,12 @@ function Router() {
       <Route path="/forgot-password">
         <Layout>
           <ForgotPassword />
+        </Layout>
+      </Route>
+
+      <Route path="/verify-email">
+        <Layout>
+          <VerifyEmail />
         </Layout>
       </Route>
 
